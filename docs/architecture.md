@@ -47,6 +47,10 @@
 
 ## MCP and AI integrations
 
-- Do not implement MCP transport configuration until the exact SDK/bundle versions and supported transports are verified. HTTP Streamable and STDIO must not be conflated with legacy HTTP+SSE.
+- The MCP server uses the experimental Symfony MCP Bundle 0.15.0 and `mcp/sdk` 0.9.0. Its HTTP endpoint uses Streamable HTTP at `/mcp`, is localhost-only by default, requires `ROLE_DLQ_VIEWER`, and exposes only `App\Mcp\` tools. Replay and discard additionally require `ROLE_DLQ_OPERATOR`. The bundle supports STDIO too, but this application leaves it disabled until an equivalent trusted caller identity and tenant-binding mechanism is defined.
+- MCP tools derive tenant identity from the authenticated `TenantAwareUserInterface`; callers cannot select a tenant. Replay delegates to `FailedMessageProcessor`; discard uses policy, idempotency, and audit services; contract inspection and patch dry-run use current-tenant message IDs rather than arbitrary message class names.
+- A permitted discard claims an idempotency key, records `discard_requested`, acknowledges the failure, records `discarded`, then completes the claim. The audit write and transport acknowledgement are not assumed atomic; failures after the claim may require operator reconciliation.
+- The default in-memory security provider is a placeholder without configured tenant-aware users. A real authenticator/provider must be configured before connecting an MCP client; allowing a host in MCP configuration is not authentication.
+- The actual MCP tool schemas, operation limits, client example, and the current policy outcomes for discard are documented in [mcp.md](./mcp.md).
 - The current environment does not expose a Context7 tool. Until it is available, use the installed source/docblocks and version-matched official documentation; record the exact package versions checked.
 - Start with a deterministic agent. An external AI provider is optional and cannot decide policy, identity, tenant scope or authorization.
