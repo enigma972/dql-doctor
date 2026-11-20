@@ -33,3 +33,5 @@ when@test:
         App\DlqDoctor\Agent\ConfiguredDlqDoctorAgent:
             autowire: true
             public: true
+        App\Tests\Fixtures\DlqDoctor\TenantTestUserProvider:
+            public: true

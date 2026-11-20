@@ -1,0 +1,60 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Repair proposals{% endblock %}
+
+{% block body %}
+    <main class="page" data-controller="proposal-updates" data-proposal-updates-url-value="{{ mercure(topic, { subscribe: [topic] }) }}">
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">DLQ Doctor</p>
+                <h1>Repair proposals</h1>
+                <p class="muted">Review tenant-scoped proposals before any message is replayed.</p>
+            </div>
+        </header>
+
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <p class="flash flash-{{ label }}" role="status">{{ message }}</p>
+            {% endfor %}
+        {% endfor %}
+
+        <section class="panel" aria-labelledby="proposal-list-heading">
+            <h2 id="proposal-list-heading">Recent proposals</h2>
+            {% if proposals is empty %}
+                <p class="empty-state">There are no proposals for this tenant.</p>
+            {% else %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col">Message</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Created</th>
+                                <th scope="col">Expires</th>
+                                {% if is_granted('ROLE_DLQ_OPERATOR') %}
+                                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for proposal in proposals %}
+                                <tr>
+                                    <td>
+                                        <span class="message-class">{{ proposal.messageClass }}</span>
+                                        <span class="muted">ID {{ proposal.failedMessageId }}</span>
+                                    </td>
+                                    <td><span class="status status-{{ proposal.status.value }}">{{ proposal.status.value|replace({'_': ' '})|title }}</span></td>
+                                    <td><time datetime="{{ proposal.createdAt|date('c') }}">{{ proposal.createdAt|date('Y-m-d H:i T') }}</time></td>
+                                    <td><time datetime="{{ proposal.expiresAt|date('c') }}">{{ proposal.expiresAt|date('Y-m-d H:i T') }}</time></td>
+                                    {% if is_granted('ROLE_DLQ_OPERATOR') %}
+                                        <td><a class="button button-secondary" href="{{ path('dlq_proposals_show', {id: proposal.id}) }}">Review</a></td>
+                                    {% endif %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </section>
+    </main>
+{% endblock %}

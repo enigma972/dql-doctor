@@ -39,6 +39,7 @@ final readonly class FailedMessageProcessor
         private NormalizerInterface $normalizer,
         private EntityManagerInterface $entityManager,
         private TenantContext $tenantContext,
+        private ProposalEventRecorder $proposalEvents,
     ) {
     }
 
@@ -83,6 +84,14 @@ final readonly class FailedMessageProcessor
         }
 
         $idempotencyKey = hash('sha256', DlqAction::REPLAY->value."\0".$messageId);
+        if (PolicyDecision::APPROVAL === $decision) {
+            if (null === $payload) {
+                throw new LogicException('An approval proposal requires a normalized message payload.');
+            }
+
+            return $this->createApprovalProposal($envelope, $tenantId, $messageId, $message::class, $payload, $sensitivity->value, $idempotencyKey);
+        }
+
         if (!$this->idempotencyStore->claim($idempotencyKey, DlqAction::REPLAY->value)) {
             $result = $this->idempotencyStore->result($idempotencyKey);
             if (null === $result) {
@@ -97,39 +106,11 @@ final readonly class FailedMessageProcessor
                 throw new UnexpectedValueException('The completed DLQ idempotency result has an unknown outcome.');
             }
 
-            $this->failedTransport->acknowledge($envelope);
-
-            return DlqProcessingOutcome::ALREADY_PROCESSED;
-        }
-
-        if (PolicyDecision::APPROVAL === $decision) {
-            if (null === $payload) {
-                throw new LogicException('An approval proposal requires a normalized message payload.');
+            if (DlqProcessingOutcome::REPLAYED->value === $completedOutcome) {
+                $this->failedTransport->acknowledge($envelope);
             }
 
-            $this->entityManager->persist(new RepairProposal(
-                $tenantId,
-                $messageId,
-                $message::class,
-                $payload,
-                null,
-                null,
-                null,
-                $idempotencyKey,
-                new DateTimeImmutable('+1 day', new DateTimeZone('UTC')),
-            ));
-            $this->entityManager->flush();
-            $this->idempotencyStore->complete($idempotencyKey, [
-                'outcome' => DlqProcessingOutcome::PROPOSAL_CREATED->value,
-            ]);
-            $this->auditLogger->log(
-                'approval_required',
-                ['sensitivity' => $sensitivity->value],
-                $messageId,
-            );
-            $this->failedTransport->acknowledge($envelope);
-
-            return DlqProcessingOutcome::PROPOSAL_CREATED;
+            return DlqProcessingOutcome::ALREADY_PROCESSED;
         }
 
         $replayEnvelope = $envelope
@@ -153,5 +134,56 @@ final readonly class FailedMessageProcessor
         $this->failedTransport->acknowledge($envelope);
 
         return DlqProcessingOutcome::REPLAYED;
+    }
+
+    /**
+     * @param array<string|int, mixed> $payload
+     */
+    private function createApprovalProposal(
+        Envelope $envelope,
+        string $tenantId,
+        string $messageId,
+        string $messageClass,
+        array $payload,
+        string $sensitivity,
+        string $idempotencyKey,
+    ): DlqProcessingOutcome {
+        return $this->entityManager->wrapInTransaction(function () use ($envelope, $tenantId, $messageId, $messageClass, $payload, $sensitivity, $idempotencyKey): DlqProcessingOutcome {
+            if (!$this->idempotencyStore->claim($idempotencyKey, DlqAction::REPLAY->value)) {
+                $result = $this->idempotencyStore->result($idempotencyKey);
+                if (null === $result) {
+                    return DlqProcessingOutcome::IN_PROGRESS;
+                }
+
+                if (DlqProcessingOutcome::PROPOSAL_CREATED->value !== ($result['outcome'] ?? null)) {
+                    throw new UnexpectedValueException('The completed DLQ approval idempotency result has an unknown outcome.');
+                }
+
+                return DlqProcessingOutcome::ALREADY_PROCESSED;
+            }
+
+            $proposal = new RepairProposal(
+                $tenantId,
+                $messageId,
+                $messageClass,
+                $payload,
+                null,
+                null,
+                null,
+                $idempotencyKey,
+                new DateTimeImmutable('+1 day', new DateTimeZone('UTC')),
+            );
+            $this->entityManager->persist($proposal);
+            $this->proposalEvents->record($proposal);
+            $this->idempotencyStore->complete($idempotencyKey, [
+                'outcome' => DlqProcessingOutcome::PROPOSAL_CREATED->value,
+            ]);
+            $this->auditLogger->log(
+                'approval_required',
+                ['sensitivity' => $sensitivity],
+                $messageId,
+            );
+            return DlqProcessingOutcome::PROPOSAL_CREATED;
+        });
     }
 }

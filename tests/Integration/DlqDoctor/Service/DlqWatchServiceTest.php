@@ -16,6 +16,7 @@ use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\DlqWatchService;
 use App\DlqDoctor\Service\IdempotencyManager;
 use App\DlqDoctor\Service\PolicyEvaluator;
+use App\DlqDoctor\Service\ProposalEventRecorder;
 use App\DlqDoctor\Service\SensitivityResolver;
 use App\Tests\Fixtures\DlqDoctor\FixedTenantContext;
 use Doctrine\DBAL\Connection;
@@ -53,6 +54,7 @@ final class DlqWatchServiceTest extends KernelTestCase
             $container->get(NormalizerInterface::class),
             $entityManager,
             $tenantContext,
+            $container->get(ProposalEventRecorder::class),
         );
         $watchService = new DlqWatchService($failedTransport, $processor, $tenantContext);
         $messageIds = [];
@@ -68,7 +70,7 @@ final class DlqWatchServiceTest extends KernelTestCase
 
             self::assertSame(2, $outcomes[DlqProcessingOutcome::PROPOSAL_CREATED->value]);
             foreach ($messageIds as $messageId) {
-                self::assertNull($failedTransport->find($messageId));
+                self::assertNotNull($failedTransport->find($messageId));
             }
 
             $proposals = $entityManager->getRepository(RepairProposal::class)->findBy(['tenantId' => $tenantId]);
@@ -94,6 +96,7 @@ final class DlqWatchServiceTest extends KernelTestCase
                 }
                 $entityManager->flush();
 
+                $connection->delete('dlq_mercure_outbox', ['tenant_id' => $tenantId]);
                 $connection->delete('dlq_audit_log', ['tenant_id' => $tenantId]);
                 $connection->delete('dlq_idempotency_record', ['tenant_id' => $tenantId]);
             }
@@ -135,6 +138,7 @@ final class DlqWatchServiceTest extends KernelTestCase
                 $container->get(NormalizerInterface::class),
                 $entityManager,
                 $tenantContext,
+                $container->get(ProposalEventRecorder::class),
             );
 
             self::assertSame(DlqProcessingOutcome::REPLAYED, $processor->process($failedEnvelope));

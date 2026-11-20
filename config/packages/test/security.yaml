@@ -1,0 +1,8 @@
+security:
+    providers:
+        tenant_test_users:
+            id: App\Tests\Fixtures\DlqDoctor\TenantTestUserProvider
+
+    firewalls:
+        main:
+            provider: tenant_test_users

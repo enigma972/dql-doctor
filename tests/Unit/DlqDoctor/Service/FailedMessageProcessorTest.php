@@ -15,6 +15,8 @@ use App\DlqDoctor\Service\FailedMessageProcessor;
 use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\IdempotencyStore;
 use App\DlqDoctor\Service\PolicyEvaluator;
+use App\DlqDoctor\Service\ProposalEventRecorder;
+use App\DlqDoctor\Service\ProposalTopic;
 use App\DlqDoctor\Service\SensitivityResolver;
 use App\Tests\Fixtures\DlqDoctor\FixedTenantContext;
 use Doctrine\ORM\EntityManagerInterface;
@@ -57,7 +59,7 @@ final class FailedMessageProcessorTest extends TestCase
     public function testHighSensitivityFailureCreatesApprovalProposalWithoutWaiting(): void
     {
         $store = $this->createMock(FailedMessageTransport::class);
-        $store->expects(self::once())->method('acknowledge');
+        $store->expects(self::never())->method('acknowledge');
         $sender = $this->createMock(SenderInterface::class);
         $sender->expects(self::never())->method('send');
         $idempotency = $this->createMock(IdempotencyStore::class);
@@ -72,11 +74,15 @@ final class FailedMessageProcessorTest extends TestCase
         $normalizer = $this->createMock(NormalizerInterface::class);
         $normalizer->expects(self::once())->method('normalize')->willReturn(['reference' => 'safe-summary']);
         $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->expects(self::once())->method('persist')->with(self::callback(
-            static fn (RepairProposal $proposal): bool => RepairProposal::class === $proposal::class
-                && $proposal->status()->value === 'pending_approval',
+        $entityManager->expects(self::once())->method('wrapInTransaction')->willReturnCallback(
+            fn (callable $transaction): mixed => $transaction($entityManager),
+        );
+        $entityManager->expects(self::exactly(2))->method('persist')->with(self::callback(
+            static fn (object $entity): bool => $entity instanceof RepairProposal
+                ? $entity->status()->value === 'pending_approval'
+                : $entity instanceof \App\DlqDoctor\Entity\MercureOutboxMessage
+                    && $entity->eventType() === 'proposal.updated',
         ));
-        $entityManager->expects(self::once())->method('flush');
 
         $processor = $this->processor($store, $sender, $idempotency, $audit, $normalizer, $entityManager);
 
@@ -286,6 +292,8 @@ final class FailedMessageProcessorTest extends TestCase
         ?array $policy = null,
         string $tenantId = 'tenant-a',
     ): FailedMessageProcessor {
+        $entityManager ??= $this->createStub(EntityManagerInterface::class);
+
         return new FailedMessageProcessor(
             $store,
             $sender,
@@ -298,8 +306,9 @@ final class FailedMessageProcessorTest extends TestCase
             ]),
             new SensitivityResolver(),
             $normalizer ?? $this->createStub(NormalizerInterface::class),
-            $entityManager ?? $this->createStub(EntityManagerInterface::class),
+            $entityManager,
             new FixedTenantContext($tenantId),
+            new ProposalEventRecorder($entityManager, new ProposalTopic()),
         );
     }
 

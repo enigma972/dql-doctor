@@ -60,6 +60,34 @@ services:
       app:
         condition: service_started
 
+  outbox-publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    command: ["php", "bin/console", "dlq:publish-outbox", "--loop"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=18&charset=utf8"
+      DLQ_TENANT_ID: ${DLQ_TENANT_ID:-demo}
+      MERCURE_URL: http://app/.well-known/mercure
+      MERCURE_PUBLIC_URL: http://localhost/.well-known/mercure
+      MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+      MERCURE_JWT_ISSUER: ${MERCURE_JWT_ISSUER:-http://localhost}
+      MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+      MERCURE_SUBSCRIBER_JWT_KEY: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
+      MERCURE_PUBLISHER_JWT_ALG: HS256
+      MERCURE_SUBSCRIBER_JWT_ALG: HS256
+    volumes:
+      - .:/app:rw
+    depends_on:
+      database:
+        condition: service_healthy
+      app:
+        condition: service_started
+
   rabbitmq:
     image: rabbitmq:4-management-alpine
     restart: unless-stopped

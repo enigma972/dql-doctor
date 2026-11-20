@@ -88,6 +88,79 @@ final class RepairProposal
         return $this->status;
     }
 
+    public function tenantId(): string
+    {
+        return $this->tenantId;
+    }
+
+    public function failedMessageId(): string
+    {
+        return $this->failedMessageId;
+    }
+
+    public function messageClass(): string
+    {
+        return $this->messageClass;
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     */
+    public function originalPayload(): array
+    {
+        return $this->originalPayload;
+    }
+
+    /**
+     * @return array<string|int, mixed>|null
+     */
+    public function patchedPayload(): ?array
+    {
+        return $this->patchedPayload;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function diff(): ?array
+    {
+        return $this->diff;
+    }
+
+    public function idempotencyKey(): string
+    {
+        return $this->idempotencyKey;
+    }
+
+    public function expiresAt(): DateTimeImmutable
+    {
+        return $this->expiresAt;
+    }
+
+    public function issueApprovalToken(DateTimeImmutable $now): string
+    {
+        if (RepairProposalStatus::PENDING_APPROVAL !== $this->status || $this->expiresAt <= $now) {
+            throw new DomainException('An approval token can only be issued for a pending, unexpired proposal.');
+        }
+
+        $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+        $this->approvalTokenHash = hash('sha256', $token);
+
+        return $token;
+    }
+
+    public function expireIfDue(DateTimeImmutable $now): bool
+    {
+        if (RepairProposalStatus::PENDING_APPROVAL !== $this->status || $this->expiresAt > $now) {
+            return false;
+        }
+
+        $this->status = RepairProposalStatus::EXPIRED;
+        $this->approvalTokenHash = null;
+
+        return true;
+    }
+
     public function summary(): RepairProposalSummary
     {
         if (null === $this->id) {
@@ -104,19 +177,34 @@ final class RepairProposal
         );
     }
 
-    public function approve(): void
+    public function approve(string $token, DateTimeImmutable $now): void
     {
+        $this->consumeApprovalToken($token, $now);
         $this->transitionFromPending(RepairProposalStatus::APPROVED);
     }
 
-    public function reject(): void
+    public function assertApprovalToken(string $token, DateTimeImmutable $now): void
     {
-        $this->transitionFromPending(RepairProposalStatus::REJECTED);
+        if (RepairProposalStatus::PENDING_APPROVAL !== $this->status) {
+            throw new DomainException(sprintf('Cannot consume a token for a proposal in "%s" state.', $this->status->value));
+        }
+
+        if ($this->expiresAt <= $now) {
+            throw new DomainException('The repair proposal has expired.');
+        }
+
+        if (null === $this->approvalTokenHash
+            || '' === $token
+            || !hash_equals($this->approvalTokenHash, hash('sha256', $token))
+        ) {
+            throw new DomainException('The approval token is invalid or has already been used.');
+        }
     }
 
-    public function expire(): void
+    public function reject(string $token, DateTimeImmutable $now): void
     {
-        $this->transitionFromPending(RepairProposalStatus::EXPIRED);
+        $this->consumeApprovalToken($token, $now);
+        $this->transitionFromPending(RepairProposalStatus::REJECTED);
     }
 
     public function markReplayed(): void
@@ -135,5 +223,11 @@ final class RepairProposal
         }
 
         $this->status = $status;
+    }
+
+    private function consumeApprovalToken(string $token, DateTimeImmutable $now): void
+    {
+        $this->assertApprovalToken($token, $now);
+        $this->approvalTokenHash = null;
     }
 }

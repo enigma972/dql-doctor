@@ -21,24 +21,51 @@ final class RepairProposalTest extends TestCase
     public function testProposalCanOnlyBeApprovedOnce(): void
     {
         $proposal = self::proposal();
-        $proposal->approve();
+        $token = $proposal->issueApprovalToken(new \DateTimeImmutable());
+        $proposal->approve($token, new \DateTimeImmutable());
 
         self::assertSame(RepairProposalStatus::APPROVED, $proposal->status());
 
         $this->expectException(\DomainException::class);
-        $proposal->approve();
+        $proposal->approve($token, new \DateTimeImmutable());
     }
 
     public function testApprovedProposalCanBeMarkedReplayed(): void
     {
         $proposal = self::proposal();
-        $proposal->approve();
+        $proposal->approve(
+            $proposal->issueApprovalToken(new \DateTimeImmutable()),
+            new \DateTimeImmutable(),
+        );
         $proposal->markReplayed();
 
         self::assertSame(RepairProposalStatus::REPLAYED, $proposal->status());
     }
 
-    private static function proposal(): RepairProposal
+    public function testApprovalTokenIsSingleUseAndNeverReturnedAsAHash(): void
+    {
+        $proposal = self::proposal();
+        $token = $proposal->issueApprovalToken(new \DateTimeImmutable());
+
+        self::assertNotSame(hash('sha256', $token), $token);
+
+        $this->expectException(\DomainException::class);
+        $proposal->approve('incorrect-token', new \DateTimeImmutable());
+    }
+
+    public function testExpiredProposalCannotBeApprovedAndTransitionsToExpired(): void
+    {
+        $proposal = self::proposal(expiresAt: new \DateTimeImmutable('-1 second'));
+        $token = $proposal->issueApprovalToken(new \DateTimeImmutable('-1 minute'));
+
+        self::assertTrue($proposal->expireIfDue(new \DateTimeImmutable()));
+        self::assertSame(RepairProposalStatus::EXPIRED, $proposal->status());
+
+        $this->expectException(\DomainException::class);
+        $proposal->approve($token, new \DateTimeImmutable());
+    }
+
+    private static function proposal(?\DateTimeImmutable $expiresAt = null): RepairProposal
     {
         return new RepairProposal(
             tenantId: 'tenant-a',
@@ -49,7 +76,7 @@ final class RepairProposalTest extends TestCase
             diff: [],
             approvalTokenHash: hash('sha256', 'token'),
             idempotencyKey: 'key-42',
-            expiresAt: new \DateTimeImmutable('+15 minutes'),
+            expiresAt: $expiresAt ?? new \DateTimeImmutable('+15 minutes'),
         );
     }
 }
