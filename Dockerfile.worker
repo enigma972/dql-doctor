@@ -1,8 +1,8 @@
-FROM dunglas/frankenphp:1.13.5-php8.5.12-alpine
+FROM dunglas/frankenphp:1.13.5-php8.5.12-alpine AS extension-installer
 
-RUN apk add --no-cache \
-    zip \
-    unzip
+FROM php:8.5.12-cli-alpine
+
+COPY --from=extension-installer /usr/local/bin/install-php-extensions /usr/local/bin/
 
 RUN install-php-extensions \
     apcu \
@@ -13,13 +13,17 @@ RUN install-php-extensions \
     mbstring \
     pcntl
 
+RUN apk add --no-cache \
+    zip \
+    unzip
+
 COPY --from=composer:2.9.8 /usr/bin/composer /usr/bin/composer
 
 ARG USER=appuser
 
-RUN \
-    adduser -D -g '' $USER && \
-    chown -R $USER:$USER /app
+RUN adduser -D -g '' $USER \
+    && mkdir -p /app \
+    && chown -R $USER:$USER /app
 
 USER $USER
 
