@@ -1,0 +1,32 @@
+{
+	auto_https off
+}
+
+# The address of your server (HTTP only on port 80)
+:80 {
+	# @notSSE {
+	# 	not header Content-Type text/event-stream
+	# }
+
+	# mercure {
+	# 	# Publisher JWT key
+	# 	publisher_jwt !ChangeThisMercureHubJWTSecretKey!
+	# 	# Subscriber JWT key
+	# 	subscriber_jwt !ChangeThisMercureHubJWTSecretKey!
+	# }
+
+	php_server {
+		try_files {path} index.php
+		root /app/public
+	}
+
+	# encode @notSSE zstd gzip
+
+	header -X-Powered-By
+	header -Server
+
+    route /healthcheck-75ce6228ac8d09dc80af6e956d7ce {
+        skip_log
+        respond "OK" 200
+    }
+}
