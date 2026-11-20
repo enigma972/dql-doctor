@@ -84,6 +84,12 @@ Install `symfony/test-pack` if it isn't already. Functional/HTTP tests extend
 until it has a test that exercises it the way a caller would, an HTTP request for
 a controller or a service call for a service, not just "it didn't throw."
 
+Use TDD for behavior changes: write or update a focused test first, run it to
+confirm it fails for the expected reason, implement the smallest change that
+makes it pass, then refactor while keeping the test green. Add regression tests
+for bug fixes, and run the narrowest relevant test selection after each change
+before running the broader suite when appropriate.
+
 ## Code style
 
 Symfony's coding standard, the `@Symfony` php-cs-fixer ruleset (a PSR-12-derived
@@ -95,6 +101,12 @@ installed; it isn't part of the skeleton by default.
 Framework APIs change between versions and your training data may be stale. Look
 things up in the project instead of relying on memory:
 
+- When Context7 is available, use it to resolve the relevant library and fetch
+  documentation for the version installed in `composer.lock` before using
+  unfamiliar or version-sensitive APIs. Prefer version-specific Context7 docs
+  over examples for another release. If Context7 is unavailable or doesn't
+  cover the library, use the installed source/docblocks and the official
+  version-matched documentation below.
 - `bin/console about`: versions, environment, paths.
 - `bin/console debug:router`, `debug:container`, `debug:autowiring <name>`,
   `debug:config <bundle>`, `config:dump-reference <bundle>`: what exists and how
