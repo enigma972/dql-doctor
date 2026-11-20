@@ -13,7 +13,7 @@ final class TenantTestUserProvider implements UserProviderInterface
 {
     public function refreshUser(UserInterface $user): UserInterface
     {
-        if (!$user instanceof TenantTestUser) {
+        if (!$user instanceof TenantTestUser && !$user instanceof GlobalTestUser) {
             throw new UnsupportedUserException(sprintf('Unsupported test user "%s".', $user::class));
         }
 
@@ -22,7 +22,7 @@ final class TenantTestUserProvider implements UserProviderInterface
 
     public function supportsClass(string $class): bool
     {
-        return is_a($class, TenantTestUser::class, true);
+        return is_a($class, TenantTestUser::class, true) || is_a($class, GlobalTestUser::class, true);
     }
 
     public function loadUserByIdentifier(string $identifier): UserInterface

@@ -165,7 +165,8 @@ final class FailedMessageProcessorTest extends TestCase
             static fn (object $entity): bool => $entity instanceof RepairProposal
                 ? null === $entity->tenantId()
                 : $entity instanceof \App\DlqDoctor\Entity\MercureOutboxMessage
-                    && $entity->topic() === 'http://localhost/proposals',
+                    && $entity->topic() === 'http://localhost/dlq-doctor/proposals'
+                    && $entity->data() === ['status' => 'pending_approval'],
         ));
 
         $processor = $this->processor(

@@ -45,7 +45,8 @@
 - Persist the embedded hub's Bolt transport in the `frankenphp_mercure_data` Docker volume.
 - The previous standalone hub's volume is left untouched; its stored updates are not automatically migrated.
 - The app and CLI worker publish through the internal `http://app/.well-known/mercure` endpoint; browsers subscribe through the public app endpoint. Both endpoints use the Symfony Mercure 1.0 JWT configuration.
-- Proposal state events use a PostgreSQL transactional outbox and the independent `outbox-publisher` Compose service. Events are private to the tenant topic and contain status-only refresh hints; delivery is at least once, so clients refresh idempotently.
+- Proposal topics are `http://localhost/dlq-doctor/proposals` for global mode and `http://localhost/dlq-doctor/proposals/{encodedTenantId}` for a tenant. Publisher JWTs allow the tenant URL pattern and add the exact global topic only when `dlq_doctor.require_tenant` is false. Browser subscription JWTs are minted for the exact topic passed by the current tenant/global context; they do not receive a cross-tenant selector.
+- Proposal state events use a PostgreSQL transactional outbox and the independent `outbox-publisher` Compose service. Events are private and contain status-only refresh hints capped by the outbox payload bound; delivery is at least once, so clients refresh idempotently.
 - The development JWT secret is a public sample only and must be replaced for any non-local deployment.
 - Outbox persistence is atomic with proposal state and audit changes. Hub publication is retried after failure; a crash between hub acceptance and outbox commit may repeat a refresh event but cannot repeat a replay.
 

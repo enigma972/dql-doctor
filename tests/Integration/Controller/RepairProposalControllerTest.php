@@ -9,6 +9,7 @@ use App\DlqDoctor\Enum\RepairProposalStatus;
 use App\DlqDoctor\Messenger\TenantStamp;
 use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\IdempotencyStore;
+use App\Tests\Fixtures\DlqDoctor\GlobalTestUser;
 use App\Tests\Fixtures\DlqDoctor\TenantTestUser;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -209,6 +210,43 @@ final class RepairProposalControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(403);
     }
 
+    public function testTenantProposalPageSubscribesOnlyToItsTenantTopic(): void
+    {
+        $this->client->loginUser($this->operator($this->tenantId));
+
+        $crawler = $this->client->request('GET', '/proposals');
+        self::assertResponseIsSuccessful();
+        $url = (string) $crawler->filter('main[data-controller="proposal-updates"]')->attr('data-proposal-updates-url-value');
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+        self::assertSame('http://localhost/dlq-doctor/proposals/'.$this->tenantId, $query['match'] ?? null);
+    }
+
+    public function testGlobalProposalPageSubscribesOnlyToTheGlobalTopic(): void
+    {
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        $globalProposal = $this->newProposal(null, 'global-message-'.bin2hex(random_bytes(8)));
+        $entityManager->persist($globalProposal);
+        $entityManager->flush();
+
+        try {
+            $this->client->loginUser(new GlobalTestUser('global-viewer', ['ROLE_DLQ_VIEWER']));
+            $crawler = $this->client->request('GET', '/proposals');
+            self::assertResponseIsSuccessful();
+
+            $rows = $crawler->filter('tbody tr');
+            self::assertCount(1, $rows);
+            self::assertStringContainsString($globalProposal->failedMessageId(), $rows->text());
+
+            $url = (string) $crawler->filter('main[data-controller="proposal-updates"]')->attr('data-proposal-updates-url-value');
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+            self::assertSame('http://localhost/dlq-doctor/proposals', $query['match'] ?? null);
+        } finally {
+            $entityManager->remove($globalProposal);
+            $entityManager->flush();
+        }
+    }
+
     public function testApprovalRequiresCsrf(): void
     {
         $this->client->loginUser($this->operator($this->tenantId));
@@ -243,7 +281,7 @@ final class RepairProposalControllerTest extends WebTestCase
     }
 
     private function newProposal(
-        string $tenant,
+        ?string $tenant,
         string $failedMessageId,
         ?\DateTimeImmutable $expiresAt = null,
         ?string $tokenHash = null,

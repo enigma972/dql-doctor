@@ -25,7 +25,7 @@ final class MercureOutboxPublisherTest extends KernelTestCase
         $tenantId = bin2hex(random_bytes(16));
         $message = new MercureOutboxMessage(
             $tenantId,
-            'http://localhost/proposals/'.$tenantId,
+            'http://localhost/dlq-doctor/proposals/'.$tenantId,
             'proposal.updated',
             ['proposalId' => 42, 'status' => 'pending_approval'],
         );
@@ -40,7 +40,7 @@ final class MercureOutboxPublisherTest extends KernelTestCase
                     $data = json_decode($update->getData(), true, flags: JSON_THROW_ON_ERROR);
 
                     return $update->isPrivate()
-                        && ['http://localhost/proposals/'.$tenantId] === $update->getTopics()
+                        && ['http://localhost/dlq-doctor/proposals/'.$tenantId] === $update->getTopics()
                         && 'proposal.updated' === $update->getType()
                         && ['proposalId' => 42, 'status' => 'pending_approval'] === $data;
                 }))
@@ -64,7 +64,7 @@ final class MercureOutboxPublisherTest extends KernelTestCase
         $connection = $container->get(Connection::class);
         $message = new MercureOutboxMessage(
             null,
-            'http://localhost/proposals',
+            'http://localhost/dlq-doctor/proposals',
             'proposal.updated',
             ['proposalId' => 42, 'status' => 'pending_approval'],
         );
@@ -77,7 +77,7 @@ final class MercureOutboxPublisherTest extends KernelTestCase
                 ->method('publish')
                 ->with(self::callback(static function (Update $update): bool {
                     return $update->isPrivate()
-                        && ['http://localhost/proposals'] === $update->getTopics();
+                        && ['http://localhost/dlq-doctor/proposals'] === $update->getTopics();
                 }))
                 ->willReturn('mercure-global-event-id');
 
@@ -107,7 +107,7 @@ final class MercureOutboxPublisherTest extends KernelTestCase
         $tenantId = bin2hex(random_bytes(16));
         $message = new MercureOutboxMessage(
             $tenantId,
-            'http://localhost/proposals/'.$tenantId,
+            'http://localhost/dlq-doctor/proposals/'.$tenantId,
             'proposal.updated',
             ['status' => 'rejected'],
         );
