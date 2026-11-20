@@ -47,6 +47,7 @@
 
 ## MCP and AI integrations
 
+- `DlqDoctorAgentInterface` separates diagnostic suggestions from server-side policy. Deterministic mode is the default and works offline; the optional Symfony AI/OpenAI adapter is selected only when `APP_DEMO_DETERMINISTIC=false`, requires `OPENAI_API_KEY`, has no tools, and returns bounded structured output. It cannot authorize or perform DLQ actions. External mode sends normalized message payload and schema to OpenAI; see [ai-agent.md](./ai-agent.md).
 - The MCP server uses the experimental Symfony MCP Bundle 0.15.0 and `mcp/sdk` 0.9.0. Its HTTP endpoint uses Streamable HTTP at `/mcp`, is localhost-only by default, requires `ROLE_DLQ_VIEWER`, and exposes only `App\Mcp\` tools. Replay and discard additionally require `ROLE_DLQ_OPERATOR`. The bundle supports STDIO too, but this application leaves it disabled until an equivalent trusted caller identity and tenant-binding mechanism is defined.
 - MCP tools derive tenant identity from the authenticated `TenantAwareUserInterface`; callers cannot select a tenant. Replay delegates to `FailedMessageProcessor`; discard uses policy, idempotency, and audit services; contract inspection and patch dry-run use current-tenant message IDs rather than arbitrary message class names.
 - A permitted discard claims an idempotency key, records `discard_requested`, acknowledges the failure, records `discarded`, then completes the claim. The audit write and transport acknowledgement are not assumed atomic; failures after the claim may require operator reconciliation.
