@@ -1,0 +1,45 @@
+FROM dunglas/frankenphp:1.13.5-php8.5.12-alpine
+
+RUN apk add --no-cache \
+    zip \
+    unzip
+
+RUN install-php-extensions \
+    apcu \
+    zip \
+    pdo_pgsql \
+    amqp \
+    intl \
+    mbstring \
+    pcntl
+
+COPY --from=composer:2.9.8 /usr/bin/composer /usr/bin/composer
+
+ARG USER=appuser
+
+RUN \
+    adduser -D -g '' $USER && \
+    chown -R $USER:$USER /app
+
+USER $USER
+
+WORKDIR /app
+
+COPY --chown=appuser:appuser docker/worker/php/app.ini /usr/local/etc/php/conf.d/app.ini
+COPY --chown=appuser:appuser ./composer.json ./composer.lock* ./
+
+ARG APP_ENV=prod
+ENV APP_ENV=${APP_ENV}
+
+RUN composer install \
+    --no-interaction \
+    --no-plugins \
+    --no-scripts \
+    --no-dev \
+    --prefer-dist
+
+COPY --chown=appuser:appuser . ./
+
+RUN composer dump-autoload --optimize --no-dev --classmap-authoritative --apcu \
+    && php bin/console cache:clear --env=prod \
+    && php bin/console cache:warmup --env=prod

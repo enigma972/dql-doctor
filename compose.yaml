@@ -32,7 +32,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.worker
     command: ["php", "bin/console", "messenger:consume", "async", "--time-limit=3600", "--memory-limit=128M"]
     healthcheck:
       disable: true
