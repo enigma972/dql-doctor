@@ -7,6 +7,16 @@
 - The application uses Doctrine ORM 3.8 and PostgreSQL.
 - The app is an internal Symfony module under `src/DlqDoctor/`, not a reusable Symfony bundle.
 
+## Compatibility evidence
+
+The versions below come from `composer.lock`; APIs were checked against those installed packages. Context7 was not available during this verification, so installed source/docblocks and the official documentation are used instead.
+
+| Integration | Locked version and verification | Decision and limitation |
+|---|---|---|
+| MCP | `symfony/mcp-bundle` 0.15.0, `mcp/sdk` 0.9.0; Symfony components resolve to 8.1.11, which satisfies the bundle's `^7.3|^8.0` constraints. `php bin/console debug:mcp` registers all five application tools. See the [MCP Bundle documentation](https://symfony.com/doc/current/ai/bundles/mcp-bundle.html) and [MCP guide](./mcp.md). | The bundle is experimental. It supports Streamable HTTP and STDIO; this app enables HTTP only at `/mcp`. STDIO stays disabled until it can enforce the same authenticated tenant and authorization boundary. |
+| AI provider | `symfony/ai-agent`, `symfony/ai-bundle`, and `symfony/ai-open-ai-platform` 0.15.0. The optional adapter is wired to `AgentInterface` and structured output; [unit tests](../tests/Unit/DlqDoctor/Agent/DlqDoctorAgentTest.php) verify the request/response contract and fail before a provider call when the key is absent. See the [Symfony AI Agent documentation](https://symfony.com/doc/current/ai/components/agent.html) and [AI Bundle documentation](https://symfony.com/doc/current/ai/bundles/ai-bundle.html). | Deterministic mode is the default and needs no external provider. The OpenAI integration is configured and contract-tested without making a paid/live network request; an actual provider call depends on operator credentials and is not claimed as verified. |
+| Failure transport | `symfony/doctrine-messenger` 8.1.11 implements `ListableReceiverInterface` with `all(?int $limit)` and `find($id)`; returned envelopes carry `DoctrineReceivedStamp`, required by `ack()` and `reject()`. The [integration test](../tests/Integration/DlqDoctor/Service/FailedQueueManagerTest.php) sends a real envelope through the configured transport, lists and finds it, then acknowledges and verifies removal. See [Symfony Messenger documentation](https://symfony.com/doc/current/messenger.html). | `all()` and `find()` inspect; they do not reserve or claim messages. The standard consuming `get()` path does reserve through the Doctrine transport, but DLQ Doctor uses the listable API and its own database idempotency claims. Scanning is bounded, can overlap between watchers, and is not tenant-indexed or paginated. |
+
 ## Message transports
 
 - Use RabbitMQ through `symfony/amqp-messenger` for the `async` transport.
@@ -60,5 +70,4 @@
 - A permitted discard claims an idempotency key, records `discard_requested`, acknowledges the failure, records `discarded`, then completes the claim. The audit write and transport acknowledgement are not assumed atomic; failures after the claim may require operator reconciliation.
 - The default in-memory security provider is a placeholder without configured tenant-aware users. A real authenticator/provider must be configured before connecting an MCP client; allowing a host in MCP configuration is not authentication.
 - The actual MCP tool schemas, operation limits, client example, and the current policy outcomes for discard are documented in [mcp.md](./mcp.md).
-- The current environment does not expose a Context7 tool. Until it is available, use the installed source/docblocks and version-matched official documentation; record the exact package versions checked.
 - Start with a deterministic agent. An external AI provider is optional and cannot decide policy, identity, tenant scope or authorization.

@@ -2,7 +2,7 @@
 
 ## Modes
 
-`DlqDoctorAgentInterface` separates diagnostics and patch suggestions from policy and message processing. The default `APP_DEMO_DETERMINISTIC=true` mode is offline and deterministic: it proposes only missing required fields with explicit JSON Schema `default` values, otherwise it returns a diagnosis without a patch. It never calls an external provider.
+`DlqDoctorAgentInterface` separates diagnostics and patch suggestions from policy and message processing. The default `APP_DEMO_DETERMINISTIC=true` mode is offline and deterministic: it proposes required fields with explicit JSON Schema `default` values when their current values differ, otherwise it returns a diagnosis without a patch. It never calls an external provider.
 
 Set `APP_DEMO_DETERMINISTIC=false` to select the optional Symfony AI/OpenAI adapter. Configure `OPENAI_API_KEY` and, optionally, `DLQ_AI_MODEL` (default `gpt-4o-mini`) in the local environment, not in committed secrets. If deterministic mode is disabled without an API key, the adapter fails explicitly before making a request. Network/provider failures are surfaced to the caller.
 
