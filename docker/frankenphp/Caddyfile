@@ -4,29 +4,30 @@
 
 # The address of your server (HTTP only on port 80)
 :80 {
-	# @notSSE {
-	# 	not header Content-Type text/event-stream
-	# }
-
-	# mercure {
-	# 	# Publisher JWT key
-	# 	publisher_jwt !ChangeThisMercureHubJWTSecretKey!
-	# 	# Subscriber JWT key
-	# 	subscriber_jwt !ChangeThisMercureHubJWTSecretKey!
-	# }
+	mercure {
+		transport bolt {
+			path /data/mercure/mercure.db
+		}
+		issuer {$MERCURE_JWT_ISSUER:http://localhost} {
+			publisher {
+				jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
+			}
+			subscriber {
+				jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
+			}
+		}
+	}
 
 	php_server {
 		try_files {path} index.php
 		root /app/public
 	}
 
-	# encode @notSSE zstd gzip
-
 	header -X-Powered-By
 	header -Server
 
-    route /healthcheck-75ce6228ac8d09dc80af6e956d7ce {
-        skip_log
-        respond "OK" 200
-    }
+	route /healthcheck-75ce6228ac8d09dc80af6e956d7ce {
+		log_skip
+		respond "OK" 200
+	}
 }

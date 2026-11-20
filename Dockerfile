@@ -25,7 +25,8 @@ ARG USER=appuser
 # Create and set permissions for the default user
 RUN \
     adduser -D -g '' $USER && \
-    chown -R $USER:$USER /config/caddy /data/caddy /app
+    mkdir -p /data/mercure && \
+    chown -R $USER:$USER /config/caddy /data/caddy /data/mercure /app
 
 # Switch to the default user for subsequent commands
 USER $USER

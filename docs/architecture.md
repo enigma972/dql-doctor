@@ -27,7 +27,10 @@
 
 ## Real-time updates
 
-- Use the Symfony Mercure bundle with a local Mercure Hub for the demo.
+- Run the Mercure Hub embedded in the FrankenPHP app container; do not run a separate Mercure service.
+- Persist the embedded hub's Bolt transport in the `frankenphp_mercure_data` Docker volume.
+- The previous standalone hub's volume is left untouched; its stored updates are not automatically migrated.
+- The app and CLI worker publish through the internal `http://app/.well-known/mercure` endpoint; browsers subscribe through the public app endpoint. Both endpoints use the Symfony Mercure 1.0 JWT configuration.
 - The development JWT secret is a public sample only and must be replaced for any non-local deployment.
 - Mercure publication is not assumed to be atomic with database writes; use an outbox or explicitly document and test the chosen failure/retry behavior.
 
