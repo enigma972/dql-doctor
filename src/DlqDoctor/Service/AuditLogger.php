@@ -7,7 +7,7 @@ namespace App\DlqDoctor\Service;
 use App\DlqDoctor\Entity\AuditLog;
 use Doctrine\ORM\EntityManagerInterface;
 
-final readonly class AuditLogger
+final readonly class AuditLogger implements AuditLoggerInterface
 {
     public function __construct(private EntityManagerInterface $entityManager)
     {

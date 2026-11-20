@@ -7,18 +7,15 @@ namespace App\DlqDoctor\Service;
 use App\DlqDoctor\Dto\FailedMessageSummary;
 use App\DlqDoctor\Messenger\TenantStamp;
 use InvalidArgumentException;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Stamp\ErrorDetailsStamp;
 use Symfony\Component\Messenger\Stamp\TransportMessageIdStamp;
-use Symfony\Component\Messenger\Transport\Receiver\ListableReceiverInterface;
 use UnexpectedValueException;
 
 final readonly class FailedQueueManager
 {
     public function __construct(
-        #[Autowire(service: 'messenger.transport.failed')]
-        private ListableReceiverInterface $receiver,
+        private FailedMessageTransport $receiver,
         private SensitivityResolver $sensitivityResolver,
     ) {
     }

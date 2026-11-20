@@ -12,7 +12,7 @@ use Doctrine\DBAL\Types\Types;
 use LogicException;
 use UnexpectedValueException;
 
-final readonly class IdempotencyManager
+final readonly class IdempotencyManager implements IdempotencyStore
 {
     public function __construct(private Connection $connection)
     {

@@ -8,6 +8,7 @@ use App\DlqDoctor\Attribute\Sensitivity;
 use App\DlqDoctor\Enum\SensitivityLevel;
 use App\DlqDoctor\Messenger\TenantStamp;
 use App\DlqDoctor\Service\FailedQueueManager;
+use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\SensitivityResolver;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Messenger\Envelope;
@@ -37,7 +38,9 @@ final class FailedQueueManagerTest extends KernelTestCase
         $messageId = $sent->last(TransportMessageIdStamp::class)?->getId();
         self::assertIsString($messageId);
 
-        $manager = new FailedQueueManager($receiver, new SensitivityResolver());
+        $failedMessageTransport = $container->get(FailedMessageTransport::class);
+        self::assertInstanceOf(FailedMessageTransport::class, $failedMessageTransport);
+        $manager = new FailedQueueManager($failedMessageTransport, new SensitivityResolver());
         $failure = $manager->findForTenant($messageId, $tenantId);
 
         try {
@@ -48,9 +51,11 @@ final class FailedQueueManagerTest extends KernelTestCase
             self::assertCount(1, array_filter($summaries, static fn ($summary): bool => $summary->id === $messageId));
         } finally {
             if (null !== $failure) {
-                $receiver->ack($failure);
+                $failedMessageTransport->acknowledge($failure);
             }
         }
+
+        self::assertNull($failedMessageTransport->find($messageId));
     }
 }
 

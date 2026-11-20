@@ -17,6 +17,13 @@
 - The current list operation scans a bounded number of transport envelopes before filtering by tenant. It is suitable for the demo, but not a complete paginated listing at large queue volumes; production scale requires a tenant-indexed adapter or transport query.
 - An HTTP caller without a tenant-aware authenticated user is denied; the process tenant fallback is available only under CLI SAPI and is intended for a separately configured STDIO process.
 - A send to another transport and acknowledgement of the failed envelope are not assumed atomic. Idempotency must be persisted, and any stronger delivery guarantee must use an outbox or a transaction strategy verified for the selected transports.
+- `FailedMessageTransport` is the application contract; `DoctrineFailedMessageTransport` adapts Symfony's listable Doctrine receiver and its required transport stamps.
+- `app:dlq:watch` runs continuously by default (5-second poll interval), or scans one bounded batch with `--once`; each batch examines at most 500 envelopes and has no offset/cursor. Messages requiring approval are persisted as proposals and acknowledged from the failure transport, so they do not hold up the batch. LOW replay is automatic, MEDIUM replay is automatic and audited, and HIGH replay creates a pending proposal with a one-day expiry.
+- Proposal payloads are normalized to JSON and capped at 65,536 bytes; unsupported or oversized payloads fail explicitly and are left in the failure transport.
+- Pending proposals created by the watcher do not yet include an approval token or notification; the later approval-flow implementation must provision those before proposals can be acted on.
+- Replay publishes to RabbitMQ before acknowledging PostgreSQL. These operations cannot be made atomic by the selected transport APIs. A crash between publishing and recording completion, or an exception after an idempotency claim enters `started`, can leave the failure for operator reconciliation; completed claims prevent duplicates and allow a stale failure copy to be acknowledged on a later scan.
+- A processing exception is surfaced and stops the current command; the failure remains unacknowledged for a later invocation. A claimed operation that cannot be completed requires operator reconciliation.
+- Failed-message scans do not provide tenant-indexed pagination; repeated bounded scans may revisit messages outside the current tenant. Failed-message, proposal, audit, and idempotency-record cleanup are not automated.
 
 ## Policy and proposal state
 

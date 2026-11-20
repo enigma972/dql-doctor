@@ -9,6 +9,10 @@
 parameters:
 
 services:
+    App\DlqDoctor\Service\FailedMessageTransport: '@App\DlqDoctor\Service\DoctrineFailedMessageTransport'
+    App\DlqDoctor\Service\IdempotencyStore: '@App\DlqDoctor\Service\IdempotencyManager'
+    App\DlqDoctor\Service\AuditLoggerInterface: '@App\DlqDoctor\Service\AuditLogger'
+
     # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
