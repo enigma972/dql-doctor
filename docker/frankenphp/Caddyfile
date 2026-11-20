@@ -4,16 +4,26 @@
 
 # The address of your server (HTTP only on port 80)
 :80 {
-	mercure {
-		transport bolt {
-			path /data/mercure/mercure.db
-		}
-		issuer {$MERCURE_JWT_ISSUER:http://localhost} {
-			publisher {
-				jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
+	@basicSubscription {
+		method GET
+		path /.well-known/mercure
+		header_regexp Authorization (?i)^Basic[[:space:]]
+	}
+	route {
+		# Browsers may resend the demo login on EventSource; Mercure uses the subscriber cookie instead.
+		request_header @basicSubscription -Authorization
+		mercure {
+			cookie_name {$MERCURE_COOKIE_NAME:__Secure-mercure_access_token}
+			transport bolt {
+				path /data/mercure/mercure.db
 			}
-			subscriber {
-				jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
+			issuer {$MERCURE_JWT_ISSUER:http://localhost} {
+				publisher {
+					jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
+				}
+				subscriber {
+					jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
+				}
 			}
 		}
 	}

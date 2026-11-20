@@ -31,15 +31,19 @@ COPY --chown=appuser:appuser ./composer.json ./composer.lock* ./
 ARG APP_ENV=prod
 ENV APP_ENV=${APP_ENV}
 
-RUN composer install \
+RUN if [ "$APP_ENV" = prod ]; then set -- --no-dev; else set --; fi; \
+    composer install \
     --no-interaction \
     --no-plugins \
     --no-scripts \
-    --no-dev \
+    "$@" \
     --prefer-dist
 
 COPY --chown=appuser:appuser . ./
 
-RUN composer dump-autoload --optimize --no-dev --classmap-authoritative --apcu \
-    && php bin/console cache:clear --env=prod \
-    && php bin/console cache:warmup --env=prod
+RUN if [ "$APP_ENV" = prod ]; then \
+        composer dump-autoload --optimize --no-dev --classmap-authoritative --apcu \
+        && php bin/console cache:clear --env=prod; \
+    else \
+        composer dump-autoload; \
+    fi

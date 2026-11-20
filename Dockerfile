@@ -57,6 +57,8 @@ RUN composer install \
 # Copy application files
 COPY --chown=appuser:appuser . ./
 
+RUN composer dump-autoload && php bin/console importmap:install
+
 FROM base AS prod
 
 ARG APP_ENV=prod

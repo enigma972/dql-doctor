@@ -1,17 +1,20 @@
 
 services:
   app:
-    build:
+    build: &app-build
       context: .
       dockerfile: Dockerfile
-    environment:
+      target: development
+    environment: &app-env
       APP_ENV: ${APP_ENV:-dev}
       DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=18&charset=utf8"
       MESSENGER_TRANSPORT_DSN: "amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672/%2f/messages"
       MCP_TENANT_ID: ${MCP_TENANT_ID:-}
       APP_DEMO_DETERMINISTIC: ${APP_DEMO_DETERMINISTIC:-true}
       MERCURE_URL: http://app/.well-known/mercure
-      MERCURE_PUBLIC_URL: http://localhost/.well-known/mercure
+      MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL:-http://localhost/.well-known/mercure}
+      MERCURE_COOKIE_NAME: ${MERCURE_COOKIE_NAME:-mercure_access_token}
+      DLQ_DEMO_PASSWORD_HASH: ${DLQ_DEMO_PASSWORD_HASH:-}
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_JWT_ISSUER: ${MERCURE_JWT_ISSUER:-http://localhost}
       MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
@@ -19,21 +22,40 @@ services:
       MERCURE_PUBLISHER_JWT_ALG: HS256
       MERCURE_SUBSCRIBER_JWT_ALG: HS256
     volumes:
-      - .:/app:rw
       - frankenphp_mercure_data:/data/mercure
     ports:
-      - "80:80"
+      - "127.0.0.1:${APP_HTTP_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost/healthcheck-75ce6228ac8d09dc80af6e956d7ce"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
     depends_on:
       database:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    build: *app-build
+    environment: *app-env
+    command: ["php", "bin/console", "doctrine:migrations:migrate", "--no-interaction"]
+    healthcheck:
+      disable: true
+    depends_on:
+      database:
+        condition: service_healthy
 
   worker:
-    build:
+    build: &worker-build
       context: .
       dockerfile: Dockerfile.worker
+      args:
+        APP_ENV: ${APP_ENV:-dev}
     command: ["php", "bin/console", "messenger:consume", "async", "--time-limit=3600", "--memory-limit=128M"]
+    restart: unless-stopped
     healthcheck:
       disable: true
     environment:
@@ -43,27 +65,23 @@ services:
       MCP_TENANT_ID: ${MCP_TENANT_ID:-}
       APP_DEMO_DETERMINISTIC: ${APP_DEMO_DETERMINISTIC:-true}
       MERCURE_URL: http://app/.well-known/mercure
-      MERCURE_PUBLIC_URL: http://localhost/.well-known/mercure
+      MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL:-http://localhost/.well-known/mercure}
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_JWT_ISSUER: ${MERCURE_JWT_ISSUER:-http://localhost}
       MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_SUBSCRIBER_JWT_KEY: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_PUBLISHER_JWT_ALG: HS256
       MERCURE_SUBSCRIBER_JWT_ALG: HS256
-    volumes:
-      - .:/app:rw
     depends_on:
       database:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       app:
-        condition: service_started
+        condition: service_healthy
 
   outbox-publisher:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
+    build: *worker-build
     command: ["php", "bin/console", "dlq:publish-outbox", "--loop"]
     restart: unless-stopped
     healthcheck:
@@ -72,20 +90,18 @@ services:
       APP_ENV: ${APP_ENV:-dev}
       DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=18&charset=utf8"
       MERCURE_URL: http://app/.well-known/mercure
-      MERCURE_PUBLIC_URL: http://localhost/.well-known/mercure
+      MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL:-http://localhost/.well-known/mercure}
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_JWT_ISSUER: ${MERCURE_JWT_ISSUER:-http://localhost}
       MERCURE_PUBLISHER_JWT_KEY: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_SUBSCRIBER_JWT_KEY: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
       MERCURE_PUBLISHER_JWT_ALG: HS256
       MERCURE_SUBSCRIBER_JWT_ALG: HS256
-    volumes:
-      - .:/app:rw
     depends_on:
       database:
         condition: service_healthy
       app:
-        condition: service_started
+        condition: service_healthy
 
   rabbitmq:
     image: rabbitmq:4-management-alpine

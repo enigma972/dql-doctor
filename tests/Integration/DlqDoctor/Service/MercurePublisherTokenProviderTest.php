@@ -6,12 +6,14 @@ namespace App\Tests\Integration\DlqDoctor\Service;
 
 use App\DlqDoctor\Service\MercurePublisherTokenProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Mercure\HubInterface;
 
 final class MercurePublisherTokenProviderTest extends KernelTestCase
 {
     public function testConfiguredPublisherTokenHasTenantAndGlobalSelectorsInDemoMode(): void
     {
-        $token = static::getContainer()->get(MercurePublisherTokenProvider::class)->getJwt();
+        $container = static::getContainer();
+        $token = $container->get(MercurePublisherTokenProvider::class)->getJwt();
         $parts = explode('.', $token);
         self::assertCount(3, $parts);
 
@@ -22,7 +24,7 @@ final class MercurePublisherTokenProviderTest extends KernelTestCase
         );
         self::assertIsArray($payload);
         self::assertSame('http://localhost', $payload['iss']);
-        self::assertContains('http://localhost/.well-known/mercure', $payload['aud']);
+        self::assertContains($container->get(HubInterface::class)->getPublicUrl(), $payload['aud']);
 
         $publishGrants = array_values(array_filter(
             $payload['authorization_details'],

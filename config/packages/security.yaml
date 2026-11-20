@@ -30,6 +30,21 @@ security:
         - { path: ^/mcp, roles: ROLE_DLQ_VIEWER }
         - { path: ^/proposals, roles: ROLE_DLQ_VIEWER }
 
+when@dev:
+    security:
+        providers:
+            dlq_demo_users:
+                memory:
+                    users:
+                        demo:
+                            password: '%env(default::DLQ_DEMO_PASSWORD_HASH)%'
+                            roles: [ROLE_DLQ_OPERATOR]
+        firewalls:
+            main:
+                provider: dlq_demo_users
+                http_basic:
+                    realm: 'DLQ Doctor local demo'
+
 when@test:
     security:
         password_hashers:

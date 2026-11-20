@@ -4,7 +4,7 @@ The application exposes the DLQ Doctor tools through the experimental [Symfony M
 
 ## Security
 
-The endpoint is `POST /mcp` (with the other Streamable HTTP protocol methods handled by the bundle) and is localhost-only by default. `config/packages/security.yaml` requires `ROLE_DLQ_VIEWER` for the endpoint. Listing, contract inspection, and dry-run require that role; replay and discard additionally require `ROLE_DLQ_OPERATOR`. The tenant is always derived from the authenticated `TenantAwareUserInterface`; no tool accepts a tenant ID.
+The endpoint is `POST /mcp` (with the other Streamable HTTP protocol methods handled by the bundle) and is localhost-only by default. `config/packages/security.yaml` requires `ROLE_DLQ_VIEWER` for the endpoint. Listing, contract inspection, and dry-run require that role; replay and discard additionally require `ROLE_DLQ_OPERATOR`. Tenant users are scoped to their authenticated tenant. With the local global demo user, tools see only explicitly global failures. No tool accepts a tenant ID.
 
 The repository's default `users_in_memory` provider is a placeholder and does not define an authenticated tenant-aware user. Configure the application's actual authenticator and user provider before connecting a client. Do not expose the endpoint remotely by changing `http.allowed_hosts` alone: allowed hosts are not authentication. Use HTTPS and a real authenticated tenant-aware identity for remote access.
 
@@ -22,19 +22,19 @@ Tool input and output JSON Schemas are declared explicitly in `src/Mcp/DlqDoctor
 
 ## Client configuration
 
-Configure a compatible MCP client to use the Streamable HTTP URL for the local app (the example assumes the app listens on port 8000):
+Configure a compatible MCP client to use the Streamable HTTP URL for the local app:
 
 ```json
 {
   "mcpServers": {
     "dlq-doctor": {
-      "url": "http://localhost:8000/mcp"
+      "url": "http://localhost/mcp"
     }
   }
 }
 ```
 
-The example intentionally contains no credentials. It can connect only after the application has an authentication mechanism that supplies a `ROLE_DLQ_VIEWER` user implementing `TenantAwareUserInterface`. Keep the server bound to loopback for local development.
+Supply credentials through the client's HTTP authentication settings. For the local Compose demo, see the [README](../README.md) for enabling the dev-only Basic authentication user. Production requires a real tenant-aware identity. The application installs `nyholm/psr7` to supply the PSR-17 HTTP factory used by the bundle.
 
 ## Verification
 

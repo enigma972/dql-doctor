@@ -3,6 +3,7 @@ mercure:
         default:
             url: '%env(default::MERCURE_URL)%'
             public_url: '%env(default::MERCURE_PUBLIC_URL)%'
+            cookie_name: '%env(default::MERCURE_COOKIE_NAME)%'
             publisher:
                 provider: App\DlqDoctor\Service\MercurePublisherTokenProvider
             subscriber:
