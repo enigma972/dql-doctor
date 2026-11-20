@@ -17,6 +17,7 @@ use App\DlqDoctor\Service\PolicyEvaluator;
 use App\DlqDoctor\Service\SensitivityResolver;
 use App\DlqDoctor\Demo\Chaos\ChaosHighMessage;
 use App\DlqDoctor\Demo\Chaos\ChaosLowMessage;
+use App\DlqDoctor\Demo\Chaos\ChaosMessageHandler;
 use App\DlqDoctor\Demo\Chaos\ChaosMediumMessage;
 use App\DlqDoctor\Demo\Chaos\ChaosUnclassifiedMessage;
 use Doctrine\DBAL\Connection;
@@ -42,10 +43,11 @@ final class ChaosScenariosTest extends KernelTestCase
         $connection = $container->get(Connection::class);
         $messageIds = [];
         $outboxBaseline = (int) $connection->fetchOne('SELECT COALESCE(MAX(id), 0) FROM dlq_mercure_outbox');
+        $lowReference = 'chaos-low-'.bin2hex(random_bytes(6));
 
         try {
             foreach ([
-                new ChaosLowMessage('chaos-low-'.bin2hex(random_bytes(6))),
+                new ChaosLowMessage($lowReference),
                 new ChaosMediumMessage('chaos-medium-'.bin2hex(random_bytes(6))),
                 new ChaosHighMessage('chaos-high-'.bin2hex(random_bytes(6))),
                 new ChaosUnclassifiedMessage('chaos-unclassified-'.bin2hex(random_bytes(6))),
@@ -89,11 +91,32 @@ final class ChaosScenariosTest extends KernelTestCase
                 'A repeated scan must not create duplicate approval proposals.',
             );
 
-            $auditedReplay = $entityManager->getRepository(AuditLog::class)->findOneBy([
-                'failedMessageId' => $messageIds[0],
-                'action' => 'replayed',
-            ]);
-            self::assertNotNull($auditedReplay, 'The low-sensitivity automatic replay must be audited.');
+            $auditedReplay = $connection->fetchAssociative(
+                'SELECT action, context FROM dlq_audit_log WHERE failed_message_id = ?',
+                [$messageIds[0]],
+            );
+            self::assertIsArray($auditedReplay, 'The low-sensitivity automatic patch must be audited.');
+            self::assertSame('patched_and_replayed', $auditedReplay['action']);
+            self::assertSame(
+                ['sensitivity' => 'low', 'changedProperties' => ['status']],
+                json_decode($auditedReplay['context'], true, flags: JSON_THROW_ON_ERROR),
+            );
+
+            $asyncTransport = $container->get('messenger.transport.async');
+            self::assertInstanceOf(\Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport::class, $asyncTransport);
+            $lowReplay = null;
+            foreach ($asyncTransport->get(500) as $asyncEnvelope) {
+                if ($asyncEnvelope->getMessage() instanceof ChaosLowMessage
+                    && $asyncEnvelope->getMessage()->reference === $lowReference
+                ) {
+                    $lowReplay = $asyncEnvelope;
+                    break;
+                }
+            }
+            self::assertNotNull($lowReplay, 'The low-sensitivity message must be replayed after its automatic patch.');
+            self::assertSame('ready', $lowReplay->getMessage()->status);
+            (new ChaosMessageHandler())->handleLow($lowReplay->getMessage());
+            $asyncTransport->ack($lowReplay);
 
             foreach (array_slice($messageIds, 1) as $messageId) {
                 self::assertNotNull($transport->find($messageId), 'Approval-required messages must remain in the failure transport.');

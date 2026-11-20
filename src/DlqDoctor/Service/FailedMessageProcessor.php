@@ -37,6 +37,7 @@ final readonly class FailedMessageProcessor
         private PolicyEvaluator $policyEvaluator,
         private SensitivityResolver $sensitivityResolver,
         private NormalizerInterface $normalizer,
+        private AutomaticPatchApplierInterface $automaticPatchApplier,
         private EntityManagerInterface $entityManager,
         private TenantContextInterface $tenantContext,
         private ProposalEventRecorder $proposalEvents,
@@ -60,9 +61,15 @@ final readonly class FailedMessageProcessor
         $message = $envelope->getMessage();
         $sensitivity = $this->sensitivityResolver->resolve($message::class);
         $decision = $this->policyEvaluator->evaluate($sensitivity, DlqAction::REPLAY);
-
         if (PolicyDecision::FORBIDDEN === $decision) {
             return DlqProcessingOutcome::FORBIDDEN;
+        }
+
+        $patchDecision = $this->policyEvaluator->evaluate($sensitivity, DlqAction::PATCH);
+        $automaticPatch = null;
+        if (PolicyDecision::AUTO === $patchDecision || PolicyDecision::AUTO_AUDIT === $patchDecision) {
+            $errorClass = $envelope->last(ErrorDetailsStamp::class)?->getExceptionClass() ?? \RuntimeException::class;
+            $automaticPatch = $this->automaticPatchApplier->apply($message, $errorClass);
         }
 
         $payload = null;
@@ -113,17 +120,26 @@ final readonly class FailedMessageProcessor
             return DlqProcessingOutcome::ALREADY_PROCESSED;
         }
 
-        $replayEnvelope = $envelope
+        $stamps = [];
+        foreach ($envelope->all() as $envelopeStamps) {
+            array_push($stamps, ...$envelopeStamps);
+        }
+        $replayEnvelope = (new Envelope($automaticPatch?->message ?? $message, $stamps))
             ->withoutAll(ErrorDetailsStamp::class)
             ->withoutAll(RedeliveryStamp::class)
             ->withoutAll(SentToFailureTransportStamp::class)
             ->withoutAll(TransportMessageIdStamp::class);
         $this->asyncSender->send($replayEnvelope);
 
-        if (PolicyDecision::AUTO_AUDIT === $decision) {
+        if (PolicyDecision::AUTO_AUDIT === $decision || (null !== $automaticPatch && PolicyDecision::AUTO_AUDIT === $patchDecision)) {
             $this->auditLogger->log(
-                'replayed',
-                ['sensitivity' => $sensitivity->value],
+                null === $automaticPatch ? 'replayed' : 'patched_and_replayed',
+                null === $automaticPatch
+                    ? ['sensitivity' => $sensitivity->value]
+                    : [
+                        'sensitivity' => $sensitivity->value,
+                        'changedProperties' => $automaticPatch->changedProperties,
+                    ],
                 $messageId,
             );
         }

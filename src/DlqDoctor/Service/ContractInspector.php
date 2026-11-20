@@ -66,6 +66,15 @@ final readonly class ContractInspector
             } else {
                 $propertySchema = $this->schemaForType($type, $unsupported, $className, $propertyName);
             }
+            if ($reflection->hasProperty($propertyName)) {
+                $property = $reflection->getProperty($propertyName);
+                if ($property->hasDefaultValue()) {
+                    $default = $property->getDefaultValue();
+                    if (null === $default || is_scalar($default)) {
+                        $propertySchema['default'] = $default;
+                    }
+                }
+            }
             $propertyMetadata = $metadata->getPropertyMetadata($propertyName);
             $constraints = [];
 

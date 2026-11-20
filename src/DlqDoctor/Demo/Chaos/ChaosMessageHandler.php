@@ -16,7 +16,9 @@ final class ChaosMessageHandler
     #[AsMessageHandler]
     public function handleLow(ChaosLowMessage $message): void
     {
-        $this->failUntilRetriesExhausted($message);
+        if ('ready' !== $message->status) {
+            throw new RuntimeException(sprintf('The synthetic low-risk message %s is not ready.', $message->reference));
+        }
     }
 
     #[AsMessageHandler]

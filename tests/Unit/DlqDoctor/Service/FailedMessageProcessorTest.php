@@ -12,6 +12,7 @@ use App\DlqDoctor\Enum\SensitivityLevel;
 use App\DlqDoctor\Messenger\GlobalTenantStamp;
 use App\DlqDoctor\Messenger\TenantStamp;
 use App\DlqDoctor\Service\AuditLoggerInterface;
+use App\DlqDoctor\Service\AutomaticPatchApplierInterface;
 use App\DlqDoctor\Service\FailedMessageProcessor;
 use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\IdempotencyStore;
@@ -416,6 +417,7 @@ final class FailedMessageProcessorTest extends TestCase
             ]),
             new SensitivityResolver(),
             $normalizer ?? $this->createStub(NormalizerInterface::class),
+            $this->createStub(AutomaticPatchApplierInterface::class),
             $entityManager,
             new FixedTenantContext($tenantId),
             new ProposalEventRecorder($entityManager, new ProposalTopic()),

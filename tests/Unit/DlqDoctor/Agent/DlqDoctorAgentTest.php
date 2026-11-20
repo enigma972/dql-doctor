@@ -42,7 +42,7 @@ final class DlqDoctorAgentTest extends TestCase
         self::assertSame($first->diagnosis, $second->diagnosis);
         self::assertSame($first->proposedPayload, $second->proposedPayload);
         self::assertSame(
-            'A RuntimeException failure was detected for App\\Message\\OrderCreated. Missing required fields with explicit schema defaults were proposed.',
+            'A RuntimeException failure was detected for App\\Message\\OrderCreated. Required fields that differ from their explicit schema defaults were proposed.',
             $first->diagnosis,
         );
         self::assertSame(['orderId' => 'order-17', 'currency' => 'USD', 'metadata' => null], $first->proposedPayload);

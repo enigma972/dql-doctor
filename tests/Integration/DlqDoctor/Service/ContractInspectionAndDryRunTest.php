@@ -10,6 +10,7 @@ use App\DlqDoctor\Service\FailedMessageReader;
 use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\PatchDryRunService;
 use App\DlqDoctor\Service\PatchDeserializationException;
+use App\DlqDoctor\Demo\Chaos\ChaosLowMessage;
 use App\Tests\Fixtures\DlqDoctor\FixedTenantContext;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -51,6 +52,14 @@ final class ContractInspectionAndDryRunTest extends KernelTestCase
             [null, 'open', 'closed'],
             $contract->jsonSchema['properties']['mode']['enum'],
         );
+    }
+
+    public function testContractInspectionIncludesExplicitPropertyDefaultsForDeterministicPatching(): void
+    {
+        $contract = $this->contractInspector()->inspect(ChaosLowMessage::class);
+
+        self::assertSame('ready', $contract->jsonSchema['properties']['status']['default']);
+        self::assertContains('status', $contract->jsonSchema['required']);
     }
 
     public function testDryRunReturnsDiffWithoutReplayingAcknowledgingOrMutatingTheMessage(): void
