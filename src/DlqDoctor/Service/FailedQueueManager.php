@@ -6,7 +6,7 @@ namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Dto\FailedMessageSummary;
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Messenger\TenantScope;
 use InvalidArgumentException;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Messenger\Envelope;
@@ -39,7 +39,7 @@ final readonly class FailedQueueManager
         $failures = [];
 
         foreach ($this->receiver->all($scanLimit) as $envelope) {
-            if (!$this->belongsToTenant($envelope, $tenantId)) {
+            if (!TenantScope::matches($envelope, $tenantId)) {
                 continue;
             }
 
@@ -56,9 +56,10 @@ final readonly class FailedQueueManager
         }
 
         $this->denyUnlessAuthorized();
+        $tenantId = $this->tenantContext->tenantId();
         $envelope = $this->receiver->find($messageId);
 
-        if (null === $envelope || !$this->belongsToTenant($envelope, $this->tenantContext->tenantId())) {
+        if (null === $envelope || !TenantScope::matches($envelope, $tenantId)) {
             return null;
         }
 
@@ -70,11 +71,6 @@ final readonly class FailedQueueManager
         if (!$this->security->isGranted('ROLE_DLQ_VIEWER')) {
             throw new AccessDeniedException('The current user cannot view failed messages.');
         }
-    }
-
-    private function belongsToTenant(Envelope $envelope, string $tenantId): bool
-    {
-        return $tenantId === $envelope->last(TenantStamp::class)?->tenantId;
     }
 
     private function summarize(Envelope $envelope): FailedMessageSummary

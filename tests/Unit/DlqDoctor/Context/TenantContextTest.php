@@ -102,12 +102,11 @@ final class TenantContextTest extends TestCase
         (new TenantContext(new NullTenantResolver(), $security, false))->actorId();
     }
 
-    public function testLegacyTenantAccessorFailsExplicitlyInGlobalMode(): void
+    public function testNullableTenantAccessorReturnsNullInGlobalMode(): void
     {
         $security = $this->createStub(Security::class);
         $security->method('getUser')->willReturn(null);
 
-        $this->expectException(MissingTenantContextException::class);
-        (new TenantContext(new NullTenantResolver(), $security, false))->tenantId();
+        self::assertNull((new TenantContext(new NullTenantResolver(), $security, false))->tenantId());
     }
 }

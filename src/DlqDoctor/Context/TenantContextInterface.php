@@ -6,7 +6,7 @@ namespace App\DlqDoctor\Context;
 
 interface TenantContextInterface
 {
-    public function tenantId(): string;
+    public function tenantId(): ?string;
 
     public function actorId(): ?string;
 }

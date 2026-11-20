@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Context\TenantContextInterface;
+use App\DlqDoctor\Messenger\TenantScope;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\Connection;
@@ -33,7 +34,7 @@ final readonly class IdempotencyManager implements IdempotencyStore
                 VALUES (?, ?, ?, 'started', NULL, ?, NULL)
                 ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
                 SQL,
-            [$this->tenantContext->tenantId(), $key, $action, new DateTimeImmutable('now', new DateTimeZone('UTC'))],
+            [TenantScope::requireTenantId($this->tenantContext), $key, $action, new DateTimeImmutable('now', new DateTimeZone('UTC'))],
             [Types::STRING, Types::STRING, Types::STRING, Types::DATETIME_IMMUTABLE],
         );
 
@@ -51,7 +52,7 @@ final readonly class IdempotencyManager implements IdempotencyStore
             [
                 $result,
                 new DateTimeImmutable('now', new DateTimeZone('UTC')),
-                $this->tenantContext->tenantId(),
+                TenantScope::requireTenantId($this->tenantContext),
                 $key,
             ],
             [Types::JSON, Types::DATETIME_IMMUTABLE, Types::STRING, Types::STRING],
@@ -66,7 +67,7 @@ final readonly class IdempotencyManager implements IdempotencyStore
     {
         $result = $this->connection->fetchOne(
             "SELECT result FROM dlq_idempotency_record WHERE tenant_id = ? AND idempotency_key = ? AND status = 'completed'",
-            [$this->tenantContext->tenantId(), $key],
+            [TenantScope::requireTenantId($this->tenantContext), $key],
             [Types::STRING, Types::STRING],
         );
 

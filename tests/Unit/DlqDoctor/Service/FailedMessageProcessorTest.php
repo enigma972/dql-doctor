@@ -9,6 +9,8 @@ use App\DlqDoctor\Entity\RepairProposal;
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
 use App\DlqDoctor\Enum\PolicyDecision;
 use App\DlqDoctor\Enum\SensitivityLevel;
+use App\DlqDoctor\Context\MissingTenantContextException;
+use App\DlqDoctor\Messenger\GlobalTenantStamp;
 use App\DlqDoctor\Messenger\TenantStamp;
 use App\DlqDoctor\Service\AuditLoggerInterface;
 use App\DlqDoctor\Service\FailedMessageProcessor;
@@ -53,6 +55,49 @@ final class FailedMessageProcessorTest extends TestCase
         self::assertSame(
             DlqProcessingOutcome::REPLAYED,
             $processor->process($this->envelope(new LowSensitivityFailure(), 'message-1')),
+        );
+    }
+
+    public function testGlobalReplayFailsBeforeIdempotencyOrTransportSideEffectsUntilGlobalPersistenceIsSupported(): void
+    {
+        $store = $this->createMock(FailedMessageTransport::class);
+        $store->expects(self::never())->method('acknowledge');
+        $sender = $this->createMock(SenderInterface::class);
+        $sender->expects(self::never())->method('send');
+        $idempotency = $this->createMock(IdempotencyStore::class);
+        $idempotency->expects(self::never())->method('claim');
+
+        $processor = $this->processor(
+            $store,
+            $sender,
+            $idempotency,
+            $this->createStub(AuditLoggerInterface::class),
+            tenantId: null,
+        );
+        $envelope = new Envelope(new LowSensitivityFailure(), [
+            new GlobalTenantStamp(),
+            new TransportMessageIdStamp('global-message'),
+        ]);
+
+        $this->expectException(MissingTenantContextException::class);
+        $processor->process($envelope);
+    }
+
+    public function testGlobalContextDoesNotTreatAnUnstampedFailureAsGlobal(): void
+    {
+        $processor = $this->processor(
+            $this->createStub(FailedMessageTransport::class),
+            $this->createStub(SenderInterface::class),
+            $this->createStub(IdempotencyStore::class),
+            $this->createStub(AuditLoggerInterface::class),
+            tenantId: null,
+        );
+
+        self::assertSame(
+            DlqProcessingOutcome::OTHER_TENANT,
+            $processor->process(new Envelope(new LowSensitivityFailure(), [
+                new TransportMessageIdStamp('unstamped-message'),
+            ])),
         );
     }
 
@@ -290,7 +335,7 @@ final class FailedMessageProcessorTest extends TestCase
         ?NormalizerInterface $normalizer = null,
         ?EntityManagerInterface $entityManager = null,
         ?array $policy = null,
-        string $tenantId = 'tenant-a',
+        ?string $tenantId = 'tenant-a',
     ): FailedMessageProcessor {
         $entityManager ??= $this->createStub(EntityManagerInterface::class);
 

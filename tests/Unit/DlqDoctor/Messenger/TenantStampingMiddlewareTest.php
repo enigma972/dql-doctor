@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit\DlqDoctor\Messenger;
 
 use App\DlqDoctor\Context\TenantContextInterface;
+use App\DlqDoctor\Messenger\GlobalTenantStamp;
 use App\DlqDoctor\Messenger\TenantStamp;
 use App\DlqDoctor\Messenger\TenantStampingMiddleware;
 use App\DlqDoctor\Messenger\TenantScopedMessage;
@@ -64,6 +65,30 @@ final class TenantStampingMiddlewareTest extends TestCase
         $middleware->handle(new Envelope(new TenantScopedFixtureMessage(), [new TenantStamp('other-tenant')]), $this->createStub(StackInterface::class));
     }
 
+    public function testItRejectsConflictingDuplicateTenantStamps(): void
+    {
+        $context = new class implements TenantContextInterface {
+            public function tenantId(): string
+            {
+                return 'trusted-tenant';
+            }
+
+            public function actorId(): ?string
+            {
+                return null;
+            }
+        };
+
+        $this->expectException(AccessDeniedException::class);
+        (new TenantStampingMiddleware($context))->handle(
+            new Envelope(new TenantScopedFixtureMessage(), [
+                new TenantStamp('trusted-tenant'),
+                new TenantStamp('other-tenant'),
+            ]),
+            $this->createStub(StackInterface::class),
+        );
+    }
+
     public function testAReceivedStampAloneCannotBypassTenantValidation(): void
     {
         $context = new class implements TenantContextInterface {
@@ -116,6 +141,75 @@ final class TenantStampingMiddlewareTest extends TestCase
         );
 
         self::assertSame('received-tenant', $result->last(TenantStamp::class)?->tenantId);
+    }
+
+    public function testItMarksGlobalDispatchesExplicitly(): void
+    {
+        $context = new class implements TenantContextInterface {
+            public function tenantId(): ?string
+            {
+                return null;
+            }
+
+            public function actorId(): ?string
+            {
+                return null;
+            }
+        };
+        $next = $this->createStub(MiddlewareInterface::class);
+        $next->method('handle')->willReturnCallback(static fn (Envelope $envelope): Envelope => $envelope);
+        $stack = $this->createStub(StackInterface::class);
+        $stack->method('next')->willReturn($next);
+
+        $result = (new TenantStampingMiddleware($context))->handle(
+            new Envelope(new TenantScopedFixtureMessage()),
+            $stack,
+        );
+
+        self::assertInstanceOf(GlobalTenantStamp::class, $result->last(GlobalTenantStamp::class));
+        self::assertNull($result->last(TenantStamp::class));
+    }
+
+    public function testGlobalDispatchRejectsCallerSuppliedTenantStamp(): void
+    {
+        $context = new class implements TenantContextInterface {
+            public function tenantId(): ?string
+            {
+                return null;
+            }
+
+            public function actorId(): ?string
+            {
+                return null;
+            }
+        };
+
+        $this->expectException(AccessDeniedException::class);
+        (new TenantStampingMiddleware($context))->handle(
+            new Envelope(new TenantScopedFixtureMessage(), [new TenantStamp('tenant-a')]),
+            $this->createStub(StackInterface::class),
+        );
+    }
+
+    public function testTenantDispatchRejectsGlobalMarker(): void
+    {
+        $context = new class implements TenantContextInterface {
+            public function tenantId(): ?string
+            {
+                return 'tenant-a';
+            }
+
+            public function actorId(): ?string
+            {
+                return null;
+            }
+        };
+
+        $this->expectException(AccessDeniedException::class);
+        (new TenantStampingMiddleware($context))->handle(
+            new Envelope(new TenantScopedFixtureMessage(), [new GlobalTenantStamp()]),
+            $this->createStub(StackInterface::class),
+        );
     }
 }
 

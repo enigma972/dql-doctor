@@ -7,7 +7,7 @@ namespace App\Mcp;
 use App\DlqDoctor\Dto\FailedMessageSummary;
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Messenger\TenantScope;
 use App\DlqDoctor\Service\ContractInspector;
 use App\DlqDoctor\Service\FailedMessageDiscarder;
 use App\DlqDoctor\Service\FailedMessageNotFoundException;
@@ -301,7 +301,7 @@ final readonly class DlqDoctorTools
         ]);
     }
 
-    private function authorizeViewer(): string
+    private function authorizeViewer(): ?string
     {
         if (!$this->security->isGranted('ROLE_DLQ_VIEWER')) {
             throw new AccessDeniedException('The current user cannot use DLQ Doctor tools.');
@@ -310,7 +310,7 @@ final readonly class DlqDoctorTools
         return $this->tenantContext->tenantId();
     }
 
-    private function authorizeOperator(): string
+    private function authorizeOperator(): ?string
     {
         $tenantId = $this->authorizeViewer();
         if (!$this->security->isGranted('ROLE_DLQ_OPERATOR')) {
@@ -320,14 +320,14 @@ final readonly class DlqDoctorTools
         return $tenantId;
     }
 
-    private function findForTenant(string $messageId, string $tenantId): Envelope
+    private function findForTenant(string $messageId, ?string $tenantId): Envelope
     {
         if ('' === trim($messageId) || strlen($messageId) > 128) {
             throw new InvalidArgumentException('A message ID must contain between 1 and 128 characters.');
         }
 
         $envelope = $this->failedMessageReader->find($messageId);
-        if (null === $envelope || $tenantId !== $envelope->last(TenantStamp::class)?->tenantId) {
+        if (null === $envelope || !TenantScope::matches($envelope, $tenantId)) {
             throw new FailedMessageNotFoundException();
         }
 

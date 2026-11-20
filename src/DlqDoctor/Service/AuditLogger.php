@@ -6,6 +6,7 @@ namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Entity\AuditLog;
 use App\DlqDoctor\Context\TenantContextInterface;
+use App\DlqDoctor\Messenger\TenantScope;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use JsonException;
@@ -43,7 +44,7 @@ final readonly class AuditLogger implements AuditLoggerInterface
         }
 
         $this->entityManager->persist(new AuditLog(
-            $this->tenantContext->tenantId(),
+            TenantScope::requireTenantId($this->tenantContext),
             $action,
             $context,
             $this->tenantContext->actorId(),

@@ -6,7 +6,9 @@ namespace App\Tests\Unit\DlqDoctor\Service;
 
 use App\DlqDoctor\Attribute\Sensitivity;
 use App\DlqDoctor\Enum\SensitivityLevel;
+use App\DlqDoctor\Messenger\GlobalTenantStamp;
 use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Context\MissingTenantContextException;
 use App\DlqDoctor\Service\FailedQueueManager;
 use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\SensitivityResolver;
@@ -48,6 +50,59 @@ final class FailedQueueManagerTest extends TestCase
 
         self::assertNull($manager->findSummaryForCurrentTenant('2'));
         self::assertSame('2', $this->manager($receiver, 'tenant-b')->findSummaryForCurrentTenant('2')?->id);
+    }
+
+    public function testGlobalListingIncludesOnlyExplicitlyGlobalMessages(): void
+    {
+        $receiver = $this->createStub(FailedMessageTransport::class);
+        $receiver->method('all')->willReturn([
+            new Envelope(new LowSensitivityMessage(), [new GlobalTenantStamp(), new TransportMessageIdStamp('global')]),
+            new Envelope(new LowSensitivityMessage(), [new TenantStamp('tenant-a'), new TransportMessageIdStamp('tenant')]),
+            new Envelope(new LowSensitivityMessage(), [new TransportMessageIdStamp('unstamped')]),
+        ]);
+        $security = $this->createStub(Security::class);
+        $security->method('isGranted')->willReturn(true);
+        $context = new class implements \App\DlqDoctor\Context\TenantContextInterface {
+            public function tenantId(): ?string
+            {
+                return null;
+            }
+
+            public function actorId(): ?string
+            {
+                return null;
+            }
+        };
+        $manager = new FailedQueueManager($receiver, new SensitivityResolver(), $context, $security);
+
+        self::assertSame(['global'], array_map(
+            static fn ($summary): string => $summary->id,
+            $manager->listForCurrentTenant(),
+        ));
+    }
+
+    public function testRequiredTenantFailureOccursBeforeTransportScan(): void
+    {
+        $receiver = $this->createMock(FailedMessageTransport::class);
+        $receiver->expects(self::never())->method('all');
+        $receiver->expects(self::never())->method('find');
+        $security = $this->createStub(Security::class);
+        $security->method('isGranted')->willReturn(true);
+        $context = new class implements \App\DlqDoctor\Context\TenantContextInterface {
+            public function tenantId(): ?string
+            {
+                throw new MissingTenantContextException();
+            }
+
+            public function actorId(): ?string
+            {
+                return null;
+            }
+        };
+        $manager = new FailedQueueManager($receiver, new SensitivityResolver(), $context, $security);
+
+        $this->expectException(MissingTenantContextException::class);
+        $manager->listForCurrentTenant();
     }
 
     public function testItRequiresAnAuthorizedViewer(): void

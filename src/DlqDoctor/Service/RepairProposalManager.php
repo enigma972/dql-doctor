@@ -7,6 +7,7 @@ namespace App\DlqDoctor\Service;
 use App\DlqDoctor\Dto\RepairProposalSummary;
 use App\DlqDoctor\Entity\RepairProposal;
 use App\DlqDoctor\Context\TenantContextInterface;
+use App\DlqDoctor\Messenger\TenantScope;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -33,7 +34,7 @@ final readonly class RepairProposalManager
         }
 
         $proposals = $this->entityManager->getRepository(RepairProposal::class)->findBy(
-            ['tenantId' => $this->tenantContext->tenantId()],
+            ['tenantId' => TenantScope::requireTenantId($this->tenantContext)],
             ['createdAt' => 'DESC'],
             $limit,
         );
@@ -54,7 +55,7 @@ final readonly class RepairProposalManager
 
         $proposal = $this->entityManager->getRepository(RepairProposal::class)->findOneBy([
             'id' => $id,
-            'tenantId' => $this->tenantContext->tenantId(),
+            'tenantId' => TenantScope::requireTenantId($this->tenantContext),
         ]);
 
         return $proposal instanceof RepairProposal ? $proposal->summary() : null;

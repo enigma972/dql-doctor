@@ -44,9 +44,9 @@ final readonly class TenantContext implements TenantContextInterface
         return null;
     }
 
-    public function tenantId(): string
+    public function tenantId(): ?string
     {
-        return $this->resolve() ?? throw new MissingTenantContextException();
+        return $this->resolve();
     }
 
     public function actorId(): ?string

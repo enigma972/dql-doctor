@@ -6,7 +6,7 @@ namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Messenger\TenantScope;
 use InvalidArgumentException;
 
 final readonly class DlqWatchService
@@ -31,7 +31,7 @@ final readonly class DlqWatchService
         $outcomes = array_fill_keys(array_column(DlqProcessingOutcome::cases(), 'value'), 0);
 
         foreach ($this->failedTransport->all($limit) as $envelope) {
-            if ($tenantId !== $envelope->last(TenantStamp::class)?->tenantId) {
+            if (!TenantScope::matches($envelope, $tenantId)) {
                 continue;
             }
 

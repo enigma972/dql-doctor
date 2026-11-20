@@ -8,7 +8,7 @@ use App\DlqDoctor\Dto\PatchDryRunResult;
 use App\DlqDoctor\Dto\PatchViolation;
 use App\DlqDoctor\Dto\PayloadChange;
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Messenger\TenantScope;
 use InvalidArgumentException;
 use JsonException;
 use ReflectionReference;
@@ -49,10 +49,10 @@ final readonly class PatchDryRunService
             throw new InvalidArgumentException('A message ID must contain between 1 and 128 characters.');
         }
 
-        $envelope = $this->failedTransport->find($messageId);
         $tenantId = $this->tenantContext->tenantId();
+        $envelope = $this->failedTransport->find($messageId);
 
-        if (null === $envelope || $tenantId !== $envelope->last(TenantStamp::class)?->tenantId) {
+        if (null === $envelope || !TenantScope::matches($envelope, $tenantId)) {
             throw new FailedMessageNotFoundException();
         }
 

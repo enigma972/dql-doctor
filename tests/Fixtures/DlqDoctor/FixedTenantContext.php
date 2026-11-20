@@ -9,12 +9,12 @@ use App\DlqDoctor\Context\TenantContextInterface;
 final readonly class FixedTenantContext implements TenantContextInterface
 {
     public function __construct(
-        private string $tenant,
+        private ?string $tenant,
         private ?string $actor = null,
     ) {
     }
 
-    public function tenantId(): string
+    public function tenantId(): ?string
     {
         return $this->tenant;
     }

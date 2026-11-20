@@ -28,13 +28,36 @@ final readonly class TenantStampingMiddleware implements MiddlewareInterface
         }
 
         $tenantId = $this->tenantContext->tenantId();
-        $existingTenantId = $envelope->last(TenantStamp::class)?->tenantId;
+        $tenantStamps = $envelope->all(TenantStamp::class);
+        $globalStamps = $envelope->all(GlobalTenantStamp::class);
+        $isGlobal = [] !== $globalStamps;
 
-        if (null !== $existingTenantId && $existingTenantId !== $tenantId) {
+        foreach ($tenantStamps as $tenantStamp) {
+            if (null !== $tenantId && $tenantId !== $tenantStamp->tenantId) {
+                throw new AccessDeniedException('A message cannot be dispatched for a different tenant.');
+            }
+        }
+
+        if (null === $tenantId) {
+            if ([] !== $tenantStamps) {
+                throw new AccessDeniedException('A global dispatch cannot carry a tenant-specific stamp.');
+            }
+
+            if ($isGlobal) {
+                return $stack->next()->handle($envelope, $stack);
+            }
+
+            return $stack->next()->handle(
+                $envelope->with(new GlobalTenantStamp()),
+                $stack,
+            );
+        }
+
+        if ($isGlobal) {
             throw new AccessDeniedException('A message cannot be dispatched for a different tenant.');
         }
 
-        if (null !== $existingTenantId) {
+        if ([] !== $tenantStamps) {
             return $stack->next()->handle($envelope, $stack);
         }
 

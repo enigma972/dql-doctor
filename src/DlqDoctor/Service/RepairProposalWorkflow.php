@@ -11,7 +11,7 @@ use App\DlqDoctor\Enum\DlqAction;
 use App\DlqDoctor\Enum\PolicyDecision;
 use App\DlqDoctor\Enum\RepairProposalStatus;
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Messenger\TenantScope;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\LockMode;
@@ -220,7 +220,7 @@ final readonly class RepairProposalWorkflow
 
         $proposal = $this->entityManager->getRepository(RepairProposal::class)->findOneBy([
             'id' => $id,
-            'tenantId' => $this->tenantContext->tenantId(),
+            'tenantId' => TenantScope::requireTenantId($this->tenantContext),
         ]);
         if (!$proposal instanceof RepairProposal) {
             return null;
@@ -240,7 +240,7 @@ final readonly class RepairProposalWorkflow
     {
         $envelope = $this->failedTransport->find($proposal->failedMessageId());
         if (null === $envelope
-            || $proposal->tenantId() !== $envelope->last(TenantStamp::class)?->tenantId
+            || !TenantScope::matches($envelope, $proposal->tenantId())
             || $proposal->messageClass() !== $envelope->getMessage()::class
             || (string) $envelope->last(TransportMessageIdStamp::class)?->getId() !== $proposal->failedMessageId()
         ) {

@@ -9,7 +9,7 @@ use App\DlqDoctor\Enum\DlqAction;
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
 use App\DlqDoctor\Enum\PolicyDecision;
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Messenger\TenantScope;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\ORM\EntityManagerInterface;
@@ -47,7 +47,7 @@ final readonly class FailedMessageProcessor
     {
         $tenantId = $this->tenantContext->tenantId();
 
-        if ($tenantId !== $envelope->last(TenantStamp::class)?->tenantId) {
+        if (!TenantScope::matches($envelope, $tenantId)) {
             return DlqProcessingOutcome::OTHER_TENANT;
         }
 
@@ -89,9 +89,11 @@ final readonly class FailedMessageProcessor
                 throw new LogicException('An approval proposal requires a normalized message payload.');
             }
 
+            $tenantId = TenantScope::requireTenantId($this->tenantContext);
             return $this->createApprovalProposal($envelope, $tenantId, $messageId, $message::class, $payload, $sensitivity->value, $idempotencyKey);
         }
 
+        TenantScope::requireTenantId($this->tenantContext);
         if (!$this->idempotencyStore->claim($idempotencyKey, DlqAction::REPLAY->value)) {
             $result = $this->idempotencyStore->result($idempotencyKey);
             if (null === $result) {

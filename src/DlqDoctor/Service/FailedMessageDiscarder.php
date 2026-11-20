@@ -8,7 +8,7 @@ use App\DlqDoctor\Enum\DlqAction;
 use App\DlqDoctor\Enum\DlqDiscardOutcome;
 use App\DlqDoctor\Enum\PolicyDecision;
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Messenger\TenantScope;
 use InvalidArgumentException;
 use RuntimeException;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -38,9 +38,9 @@ final readonly class FailedMessageDiscarder
             throw new InvalidArgumentException('A message ID must contain between 1 and 128 characters.');
         }
 
-        $envelope = $this->failedTransport->find($messageId);
         $tenantId = $this->tenantContext->tenantId();
-        if (null === $envelope || $tenantId !== $envelope->last(TenantStamp::class)?->tenantId) {
+        $envelope = $this->failedTransport->find($messageId);
+        if (null === $envelope || !TenantScope::matches($envelope, $tenantId)) {
             throw new FailedMessageNotFoundException();
         }
 
@@ -59,6 +59,7 @@ final readonly class FailedMessageDiscarder
             );
         }
 
+        TenantScope::requireTenantId($this->tenantContext);
         $idempotencyKey = hash('sha256', DlqAction::DISCARD->value."\0".$messageId);
         if (!$this->idempotencyStore->claim($idempotencyKey, DlqAction::DISCARD->value)) {
             $result = $this->idempotencyStore->result($idempotencyKey);
