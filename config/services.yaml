@@ -10,6 +10,7 @@ parameters:
 
 services:
     App\DlqDoctor\Service\FailedMessageTransport: '@App\DlqDoctor\Service\DoctrineFailedMessageTransport'
+    App\DlqDoctor\Service\FailedMessageReader: '@App\DlqDoctor\Service\DoctrineFailedMessageTransport'
     App\DlqDoctor\Service\IdempotencyStore: '@App\DlqDoctor\Service\IdempotencyManager'
     App\DlqDoctor\Service\AuditLoggerInterface: '@App\DlqDoctor\Service\AuditLogger'
 

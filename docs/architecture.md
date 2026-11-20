@@ -33,6 +33,8 @@
 - An unclassified message is HIGH by default.
 - Pending human approval is stored as a proposal; no worker waits for the human decision.
 - Approval must be tenant-scoped and revalidate the proposal state, token expiry, authorization, payload and policy before any dispatch.
+- `ContractInspector` builds an informational JSON Schema from extracted PHP property types, constructor requirements, backed enums, and a limited set of Symfony Validator constraints. Unsupported class/getter/property constraints, custom groups, nested object details, and ambiguous PHP array shapes/item types are reported rather than silently translated; the schema is not a substitute for Symfony validation.
+- `PatchDryRunService` reads a tenant-owned failed envelope, deserializes only into that envelope's original message class, rejects extra attributes and type errors, validates with Symfony's default group, and returns bounded validation issues and a field-level diff. It has no replay, acknowledgement, persistence, or entity-manager dependency; patch and diff JSON are each capped at 65,536 bytes.
 
 ## Real-time updates
 
