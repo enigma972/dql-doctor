@@ -14,6 +14,8 @@ services:
     App\DlqDoctor\Service\IdempotencyStore: '@App\DlqDoctor\Service\IdempotencyManager'
     App\DlqDoctor\Service\AuditLoggerInterface: '@App\DlqDoctor\Service\AuditLogger'
     App\DlqDoctor\Agent\DlqDoctorAgentInterface: '@App\DlqDoctor\Agent\ConfiguredDlqDoctorAgent'
+    App\DlqDoctor\Context\TenantContextInterface: '@App\DlqDoctor\Context\TenantContext'
+    App\DlqDoctor\Context\TenantResolverInterface: '@App\DlqDoctor\Context\NullTenantResolver'
 
     # default configuration for services in *this* file
     _defaults:

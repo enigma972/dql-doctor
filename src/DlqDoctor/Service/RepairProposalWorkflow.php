@@ -10,7 +10,7 @@ use App\DlqDoctor\Entity\RepairProposal;
 use App\DlqDoctor\Enum\DlqAction;
 use App\DlqDoctor\Enum\PolicyDecision;
 use App\DlqDoctor\Enum\RepairProposalStatus;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Messenger\TenantStamp;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -40,7 +40,7 @@ final readonly class RepairProposalWorkflow
 
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
         private Security $security,
         private IdempotencyStore $idempotencyStore,
         private AuditLoggerInterface $auditLogger,

@@ -6,7 +6,7 @@ namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Dto\RepairProposalSummary;
 use App\DlqDoctor\Entity\RepairProposal;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -16,7 +16,7 @@ final readonly class RepairProposalManager
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
         private Security $security,
     ) {
     }

@@ -6,7 +6,7 @@ namespace App\Mcp;
 
 use App\DlqDoctor\Dto\FailedMessageSummary;
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Messenger\TenantStamp;
 use App\DlqDoctor\Service\ContractInspector;
 use App\DlqDoctor\Service\FailedMessageDiscarder;
@@ -34,7 +34,7 @@ final readonly class DlqDoctorTools
         private FailedMessageReader $failedMessageReader,
         private FailedMessageProcessor $failedMessageProcessor,
         private FailedMessageDiscarder $failedMessageDiscarder,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
         private Security $security,
     ) {
     }

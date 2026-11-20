@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\DlqDoctor\Messenger;
+namespace App\DlqDoctor\Context;
 
-interface TenantContext
+interface TenantContextInterface
 {
     public function tenantId(): string;
 

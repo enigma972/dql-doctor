@@ -7,7 +7,7 @@ namespace App\DlqDoctor\Service;
 use App\DlqDoctor\Dto\PatchDryRunResult;
 use App\DlqDoctor\Dto\PatchViolation;
 use App\DlqDoctor\Dto\PayloadChange;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Messenger\TenantStamp;
 use InvalidArgumentException;
 use JsonException;
@@ -30,7 +30,7 @@ final readonly class PatchDryRunService
     public function __construct(
         private FailedMessageReader $failedTransport,
         private ContractInspector $contractInspector,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
         private Security $security,
         private NormalizerInterface $normalizer,
         private DenormalizerInterface $denormalizer,

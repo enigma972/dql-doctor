@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\DlqDoctor\Service;
 
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\Connection;
@@ -17,7 +17,7 @@ final readonly class IdempotencyManager implements IdempotencyStore
 {
     public function __construct(
         private Connection $connection,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
     ) {
         if (!$connection->getDatabasePlatform() instanceof PostgreSQLPlatform) {
             throw new LogicException('Idempotency claims currently require PostgreSQL.');

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Dto\FailedMessageSummary;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Messenger\TenantStamp;
 use InvalidArgumentException;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -20,7 +20,7 @@ final readonly class FailedQueueManager
     public function __construct(
         private FailedMessageTransport $receiver,
         private SensitivityResolver $sensitivityResolver,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
         private Security $security,
     ) {
     }

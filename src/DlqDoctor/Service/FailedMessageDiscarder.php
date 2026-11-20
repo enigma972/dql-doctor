@@ -7,7 +7,7 @@ namespace App\DlqDoctor\Service;
 use App\DlqDoctor\Enum\DlqAction;
 use App\DlqDoctor\Enum\DlqDiscardOutcome;
 use App\DlqDoctor\Enum\PolicyDecision;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Messenger\TenantStamp;
 use InvalidArgumentException;
 use RuntimeException;
@@ -23,7 +23,7 @@ final readonly class FailedMessageDiscarder
         private FailedMessageTransport $failedTransport,
         private PolicyEvaluator $policyEvaluator,
         private SensitivityResolver $sensitivityResolver,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
         private Security $security,
         private IdempotencyStore $idempotencyStore,
         private AuditLoggerInterface $auditLogger,

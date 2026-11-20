@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\DlqDoctor\Enum\RepairProposalStatus;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Service\FailedMessageNotFoundException;
 use App\DlqDoctor\Service\ProposalTopic;
 use App\DlqDoctor\Service\RepairProposalManager;
@@ -25,7 +25,7 @@ final class RepairProposalController extends AbstractController
     #[IsGranted('ROLE_DLQ_VIEWER')]
     public function index(
         RepairProposalManager $proposalManager,
-        TenantContext $tenantContext,
+        TenantContextInterface $tenantContext,
         ProposalTopic $topic,
     ): Response {
         return $this->render('proposal/index.html.twig', [
@@ -36,7 +36,7 @@ final class RepairProposalController extends AbstractController
 
     #[Route('/{id}', name: 'show', requirements: ['id' => '\d+'], methods: ['GET'])]
     #[IsGranted('ROLE_DLQ_OPERATOR')]
-    public function show(int $id, RepairProposalWorkflow $workflow, TenantContext $tenantContext, ProposalTopic $topic): Response
+    public function show(int $id, RepairProposalWorkflow $workflow, TenantContextInterface $tenantContext, ProposalTopic $topic): Response
     {
         $proposal = $workflow->review($id);
         if (null === $proposal) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\DlqDoctor\Messenger;
 
+use App\DlqDoctor\Context\TenantContextInterface;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Component\Messenger\Middleware\StackInterface;
@@ -13,7 +14,7 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 final readonly class TenantStampingMiddleware implements MiddlewareInterface
 {
-    public function __construct(private TenantContext $tenantContext)
+    public function __construct(private TenantContextInterface $tenantContext)
     {
     }
 

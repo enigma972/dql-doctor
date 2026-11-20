@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Entity\AuditLog;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use JsonException;
@@ -14,7 +14,7 @@ final readonly class AuditLogger implements AuditLoggerInterface
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
     )
     {
     }

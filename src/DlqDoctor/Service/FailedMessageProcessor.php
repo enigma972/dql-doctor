@@ -8,7 +8,7 @@ use App\DlqDoctor\Entity\RepairProposal;
 use App\DlqDoctor\Enum\DlqAction;
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
 use App\DlqDoctor\Enum\PolicyDecision;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Messenger\TenantStamp;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -38,7 +38,7 @@ final readonly class FailedMessageProcessor
         private SensitivityResolver $sensitivityResolver,
         private NormalizerInterface $normalizer,
         private EntityManagerInterface $entityManager,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
         private ProposalEventRecorder $proposalEvents,
     ) {
     }

@@ -1,4 +1,5 @@
 parameters:
+    dlq_doctor.require_tenant: false
     dlq_doctor.policy:
         low:
             replay: auto

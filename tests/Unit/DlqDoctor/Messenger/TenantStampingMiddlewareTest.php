@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit\DlqDoctor\Messenger;
 
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Messenger\TenantStamp;
 use App\DlqDoctor\Messenger\TenantStampingMiddleware;
 use App\DlqDoctor\Messenger\TenantScopedMessage;
@@ -20,7 +20,7 @@ final class TenantStampingMiddlewareTest extends TestCase
 {
     public function testItAddsTheTrustedTenantStampToTenantScopedMessages(): void
     {
-        $context = new class implements TenantContext {
+        $context = new class implements TenantContextInterface {
             public function tenantId(): string
             {
                 return 'trusted-tenant';
@@ -47,7 +47,7 @@ final class TenantStampingMiddlewareTest extends TestCase
 
     public function testItRejectsAConflictingTenantStamp(): void
     {
-        $context = new class implements TenantContext {
+        $context = new class implements TenantContextInterface {
             public function tenantId(): string
             {
                 return 'trusted-tenant';
@@ -66,7 +66,7 @@ final class TenantStampingMiddlewareTest extends TestCase
 
     public function testAReceivedStampAloneCannotBypassTenantValidation(): void
     {
-        $context = new class implements TenantContext {
+        $context = new class implements TenantContextInterface {
             public function tenantId(): string
             {
                 return 'trusted-tenant';
@@ -90,7 +90,7 @@ final class TenantStampingMiddlewareTest extends TestCase
 
     public function testItPreservesTheTenantStampOnMessagesReceivedFromATransport(): void
     {
-        $context = new class implements TenantContext {
+        $context = new class implements TenantContextInterface {
             public function tenantId(): string
             {
                 self::fail('A received envelope uses its transported tenant stamp.');

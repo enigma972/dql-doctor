@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
-use App\DlqDoctor\Messenger\TenantContext;
+use App\DlqDoctor\Context\TenantContextInterface;
 use App\DlqDoctor\Messenger\TenantStamp;
 use InvalidArgumentException;
 
@@ -14,7 +14,7 @@ final readonly class DlqWatchService
     public function __construct(
         private FailedMessageTransport $failedTransport,
         private FailedMessageProcessor $processor,
-        private TenantContext $tenantContext,
+        private TenantContextInterface $tenantContext,
     ) {
     }
 
