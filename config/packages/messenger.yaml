@@ -23,6 +23,10 @@ framework:
             Symfony\Component\Mailer\Messenger\SendEmailMessage: async
             Symfony\Component\Notifier\Message\ChatMessage: async
             Symfony\Component\Notifier\Message\SmsMessage: async
+            App\DlqDoctor\Demo\Chaos\ChaosLowMessage: async
+            App\DlqDoctor\Demo\Chaos\ChaosMediumMessage: async
+            App\DlqDoctor\Demo\Chaos\ChaosHighMessage: async
+            App\DlqDoctor\Demo\Chaos\ChaosUnclassifiedMessage: async
 
             # Route your messages to the transports
             # 'App\Message\YourMessage': async

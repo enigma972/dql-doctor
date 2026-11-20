@@ -33,10 +33,10 @@ final class PolicyEvaluatorTest extends TestCase
 
     public static function policyCases(): iterable
     {
-        yield 'low replay' => [SensitivityLevel::LOW, DlqAction::REPLAY, PolicyDecision::AUTO];
+        yield 'low replay' => [SensitivityLevel::LOW, DlqAction::REPLAY, PolicyDecision::AUTO_AUDIT];
         yield 'low patch' => [SensitivityLevel::LOW, DlqAction::PATCH, PolicyDecision::AUTO_AUDIT];
         yield 'low discard' => [SensitivityLevel::LOW, DlqAction::DISCARD, PolicyDecision::APPROVAL];
-        yield 'medium replay' => [SensitivityLevel::MEDIUM, DlqAction::REPLAY, PolicyDecision::AUTO_AUDIT];
+        yield 'medium replay' => [SensitivityLevel::MEDIUM, DlqAction::REPLAY, PolicyDecision::APPROVAL];
         yield 'medium patch' => [SensitivityLevel::MEDIUM, DlqAction::PATCH, PolicyDecision::APPROVAL];
         yield 'medium discard' => [SensitivityLevel::MEDIUM, DlqAction::DISCARD, PolicyDecision::APPROVAL];
         yield 'high replay' => [SensitivityLevel::HIGH, DlqAction::REPLAY, PolicyDecision::APPROVAL];
@@ -48,12 +48,12 @@ final class PolicyEvaluatorTest extends TestCase
     {
         return [
             SensitivityLevel::LOW->value => [
-                DlqAction::REPLAY->value => PolicyDecision::AUTO->value,
+                DlqAction::REPLAY->value => PolicyDecision::AUTO_AUDIT->value,
                 DlqAction::PATCH->value => PolicyDecision::AUTO_AUDIT->value,
                 DlqAction::DISCARD->value => PolicyDecision::APPROVAL->value,
             ],
             SensitivityLevel::MEDIUM->value => [
-                DlqAction::REPLAY->value => PolicyDecision::AUTO_AUDIT->value,
+                DlqAction::REPLAY->value => PolicyDecision::APPROVAL->value,
                 DlqAction::PATCH->value => PolicyDecision::APPROVAL->value,
                 DlqAction::DISCARD->value => PolicyDecision::APPROVAL->value,
             ],

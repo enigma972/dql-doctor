@@ -47,7 +47,11 @@ final class FailedMessageProcessorTest extends TestCase
         $idempotency->expects(self::once())->method('claim')->willReturn(true);
         $idempotency->expects(self::once())->method('complete');
         $audit = $this->createMock(AuditLoggerInterface::class);
-        $audit->expects(self::never())->method('log');
+        $audit->expects(self::once())->method('log')->with(
+            'replayed',
+            ['sensitivity' => 'low'],
+            'message-1',
+        );
 
         $processor = $this->processor($store, $sender, $idempotency, $audit);
 
@@ -280,26 +284,38 @@ final class FailedMessageProcessorTest extends TestCase
         }
     }
 
-    public function testMediumSensitivityReplayIsAudited(): void
+    public function testMediumSensitivityFailureCreatesApprovalProposalWithoutWaiting(): void
     {
         $store = $this->createMock(FailedMessageTransport::class);
-        $store->expects(self::once())->method('acknowledge');
+        $store->expects(self::never())->method('acknowledge');
         $sender = $this->createMock(SenderInterface::class);
-        $sender->expects(self::once())->method('send')->willReturnCallback(static fn (Envelope $envelope): Envelope => $envelope);
+        $sender->expects(self::never())->method('send');
         $idempotency = $this->createMock(IdempotencyStore::class);
         $idempotency->expects(self::once())->method('claim')->willReturn(true);
         $idempotency->expects(self::once())->method('complete');
         $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::once())->method('log')->with(
-            'replayed',
+            'approval_required',
             ['sensitivity' => 'medium'],
             'message-7',
         );
+        $normalizer = $this->createMock(NormalizerInterface::class);
+        $normalizer->expects(self::once())->method('normalize')->willReturn(['reference' => 'safe-summary']);
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('wrapInTransaction')->willReturnCallback(
+            fn (callable $transaction): mixed => $transaction($entityManager),
+        );
+        $entityManager->expects(self::exactly(2))->method('persist')->with(self::callback(
+            static fn (object $entity): bool => $entity instanceof RepairProposal
+                ? $entity->status()->value === 'pending_approval'
+                : $entity instanceof \App\DlqDoctor\Entity\MercureOutboxMessage
+                    && $entity->eventType() === 'proposal.updated',
+        ));
 
-        $processor = $this->processor($store, $sender, $idempotency, $audit);
+        $processor = $this->processor($store, $sender, $idempotency, $audit, $normalizer, $entityManager);
 
         self::assertSame(
-            DlqProcessingOutcome::REPLAYED,
+            DlqProcessingOutcome::PROPOSAL_CREATED,
             $processor->process($this->envelope(new MediumSensitivityFailure(), 'message-7')),
         );
     }
@@ -314,8 +330,8 @@ final class FailedMessageProcessorTest extends TestCase
         $idempotency->expects(self::never())->method('claim');
 
         $policy = [
-            'low' => ['replay' => 'auto', 'patch' => 'auto_audit', 'discard' => 'approval'],
-            'medium' => ['replay' => 'auto_audit', 'patch' => 'approval', 'discard' => 'approval'],
+            'low' => ['replay' => 'auto_audit', 'patch' => 'auto_audit', 'discard' => 'approval'],
+            'medium' => ['replay' => 'approval', 'patch' => 'approval', 'discard' => 'approval'],
             'high' => ['replay' => PolicyDecision::FORBIDDEN->value, 'patch' => 'approval', 'discard' => 'forbidden'],
         ];
         $processor = $this->processor(
@@ -394,8 +410,8 @@ final class FailedMessageProcessorTest extends TestCase
             $idempotency,
             $audit,
             new PolicyEvaluator($policy ?? [
-                'low' => ['replay' => 'auto', 'patch' => 'auto_audit', 'discard' => 'approval'],
-                'medium' => ['replay' => 'auto_audit', 'patch' => 'approval', 'discard' => 'approval'],
+                'low' => ['replay' => 'auto_audit', 'patch' => 'auto_audit', 'discard' => 'approval'],
+                'medium' => ['replay' => 'approval', 'patch' => 'approval', 'discard' => 'approval'],
                 'high' => ['replay' => 'approval', 'patch' => 'approval', 'discard' => 'forbidden'],
             ]),
             new SensitivityResolver(),
