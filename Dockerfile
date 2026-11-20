@@ -10,6 +10,7 @@ RUN install-php-extensions \
     apcu \
     zip \
     pdo_pgsql \
+    amqp \
     intl \
     mbstring \
     pcntl \
