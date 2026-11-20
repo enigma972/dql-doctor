@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantScope;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\DBAL\Types\Types;
 use LogicException;
@@ -27,6 +27,7 @@ final readonly class IdempotencyManager implements IdempotencyStore
 
     public function claim(string $key, string $action): bool
     {
+        $tenantId = $this->tenantContext->tenantId();
         $affectedRows = $this->connection->executeStatement(
             <<<'SQL'
                 INSERT INTO dlq_idempotency_record
@@ -34,8 +35,8 @@ final readonly class IdempotencyManager implements IdempotencyStore
                 VALUES (?, ?, ?, 'started', NULL, ?, NULL)
                 ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
                 SQL,
-            [TenantScope::requireTenantId($this->tenantContext), $key, $action, new DateTimeImmutable('now', new DateTimeZone('UTC'))],
-            [Types::STRING, Types::STRING, Types::STRING, Types::DATETIME_IMMUTABLE],
+            [$tenantId, $key, $action, new DateTimeImmutable('now', new DateTimeZone('UTC'))],
+            [null === $tenantId ? ParameterType::NULL : Types::STRING, Types::STRING, Types::STRING, Types::DATETIME_IMMUTABLE],
         );
 
         return 1 === $affectedRows;
@@ -43,19 +44,20 @@ final readonly class IdempotencyManager implements IdempotencyStore
 
     public function complete(string $key, array $result): void
     {
+        $tenantId = $this->tenantContext->tenantId();
         $affectedRows = $this->connection->executeStatement(
             <<<'SQL'
                 UPDATE dlq_idempotency_record
                 SET status = 'completed', result = ?, completed_at = ?
-                WHERE tenant_id = ? AND idempotency_key = ? AND status = 'started'
+                WHERE tenant_id IS NOT DISTINCT FROM ? AND idempotency_key = ? AND status = 'started'
                 SQL,
             [
                 $result,
                 new DateTimeImmutable('now', new DateTimeZone('UTC')),
-                TenantScope::requireTenantId($this->tenantContext),
+                $tenantId,
                 $key,
             ],
-            [Types::JSON, Types::DATETIME_IMMUTABLE, Types::STRING, Types::STRING],
+            [Types::JSON, Types::DATETIME_IMMUTABLE, null === $tenantId ? ParameterType::NULL : Types::STRING, Types::STRING],
         );
 
         if (1 !== $affectedRows) {
@@ -65,10 +67,11 @@ final readonly class IdempotencyManager implements IdempotencyStore
 
     public function result(string $key): ?array
     {
+        $tenantId = $this->tenantContext->tenantId();
         $result = $this->connection->fetchOne(
-            "SELECT result FROM dlq_idempotency_record WHERE tenant_id = ? AND idempotency_key = ? AND status = 'completed'",
-            [TenantScope::requireTenantId($this->tenantContext), $key],
-            [Types::STRING, Types::STRING],
+            "SELECT result FROM dlq_idempotency_record WHERE tenant_id IS NOT DISTINCT FROM ? AND idempotency_key = ? AND status = 'completed'",
+            [$tenantId, $key],
+            [null === $tenantId ? ParameterType::NULL : Types::STRING, Types::STRING],
         );
 
         if (false === $result || null === $result) {

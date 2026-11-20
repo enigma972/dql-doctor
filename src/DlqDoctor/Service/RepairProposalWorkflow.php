@@ -220,7 +220,7 @@ final readonly class RepairProposalWorkflow
 
         $proposal = $this->entityManager->getRepository(RepairProposal::class)->findOneBy([
             'id' => $id,
-            'tenantId' => TenantScope::requireTenantId($this->tenantContext),
+            'tenantId' => $this->tenantContext->tenantId(),
         ]);
         if (!$proposal instanceof RepairProposal) {
             return null;

@@ -17,8 +17,8 @@ final class IdempotencyRecord
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(length: 128)]
-    private string $tenantId;
+    #[ORM\Column(length: 128, nullable: true)]
+    private ?string $tenantId;
 
     #[ORM\Column(length: 128)]
     private string $idempotencyKey;
@@ -38,7 +38,7 @@ final class IdempotencyRecord
     #[ORM\Column(nullable: true)]
     private ?DateTimeImmutable $completedAt = null;
 
-    public function __construct(string $tenantId, string $idempotencyKey, string $action)
+    public function __construct(?string $tenantId, string $idempotencyKey, string $action)
     {
         $this->tenantId = $tenantId;
         $this->idempotencyKey = $idempotencyKey;

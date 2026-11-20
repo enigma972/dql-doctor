@@ -17,8 +17,8 @@ final class AuditLog
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(length: 128)]
-    private string $tenantId;
+    #[ORM\Column(length: 128, nullable: true)]
+    private ?string $tenantId;
 
     #[ORM\Column(length: 64)]
     private string $action;
@@ -36,7 +36,7 @@ final class AuditLog
     private DateTimeImmutable $createdAt;
 
     public function __construct(
-        string $tenantId,
+        ?string $tenantId,
         string $action,
         array $context = [],
         ?string $actorId = null,

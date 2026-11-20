@@ -63,7 +63,33 @@ final class RepairProposalManagerTest extends KernelTestCase
         $manager->listForCurrentTenant();
     }
 
-    private function proposal(string $tenantId, string $payload): RepairProposal
+    public function testGlobalProposalQueriesIncludeOnlyGlobalRows(): void
+    {
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        $globalProposal = $this->proposal(null, 'global-payload');
+        $tenantProposal = $this->proposal('tenant-a', 'tenant-payload');
+        $entityManager->persist($globalProposal);
+        $entityManager->persist($tenantProposal);
+        $entityManager->flush();
+        $security = $this->createStub(Security::class);
+        $security->method('isGranted')->willReturn(true);
+
+        try {
+            $manager = new RepairProposalManager($entityManager, new FixedTenantContext(null), $security);
+            $summaries = $manager->listForCurrentTenant();
+
+            self::assertCount(1, $summaries);
+            self::assertSame($globalProposal->getId(), $summaries[0]->id);
+            self::assertSame($globalProposal->getId(), $manager->findSummaryForCurrentTenant($globalProposal->getId())?->id);
+            self::assertNull($manager->findSummaryForCurrentTenant($tenantProposal->getId()));
+        } finally {
+            $entityManager->remove($globalProposal);
+            $entityManager->remove($tenantProposal);
+            $entityManager->flush();
+        }
+    }
+
+    private function proposal(?string $tenantId, string $payload): RepairProposal
     {
         return new RepairProposal(
             $tenantId,

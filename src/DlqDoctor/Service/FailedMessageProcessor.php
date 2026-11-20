@@ -89,11 +89,9 @@ final readonly class FailedMessageProcessor
                 throw new LogicException('An approval proposal requires a normalized message payload.');
             }
 
-            $tenantId = TenantScope::requireTenantId($this->tenantContext);
             return $this->createApprovalProposal($envelope, $tenantId, $messageId, $message::class, $payload, $sensitivity->value, $idempotencyKey);
         }
 
-        TenantScope::requireTenantId($this->tenantContext);
         if (!$this->idempotencyStore->claim($idempotencyKey, DlqAction::REPLAY->value)) {
             $result = $this->idempotencyStore->result($idempotencyKey);
             if (null === $result) {
@@ -143,7 +141,7 @@ final readonly class FailedMessageProcessor
      */
     private function createApprovalProposal(
         Envelope $envelope,
-        string $tenantId,
+        ?string $tenantId,
         string $messageId,
         string $messageClass,
         array $payload,

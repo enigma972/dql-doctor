@@ -19,8 +19,8 @@ final class MercureOutboxMessage
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(length: 128)]
-    private string $tenantId;
+    #[ORM\Column(length: 128, nullable: true)]
+    private ?string $tenantId;
 
     #[ORM\Column(length: 512)]
     private string $topic;
@@ -40,9 +40,9 @@ final class MercureOutboxMessage
     /**
      * @param array<string, mixed> $data
      */
-    public function __construct(string $tenantId, string $topic, string $eventType, array $data)
+    public function __construct(?string $tenantId, string $topic, string $eventType, array $data)
     {
-        if ('' === trim($tenantId) || strlen($tenantId) > 128) {
+        if (null !== $tenantId && ('' === trim($tenantId) || strlen($tenantId) > 128)) {
             throw new InvalidArgumentException('An outbox tenant ID must contain between 1 and 128 characters.');
         }
 

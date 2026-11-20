@@ -59,7 +59,6 @@ final readonly class FailedMessageDiscarder
             );
         }
 
-        TenantScope::requireTenantId($this->tenantContext);
         $idempotencyKey = hash('sha256', DlqAction::DISCARD->value."\0".$messageId);
         if (!$this->idempotencyStore->claim($idempotencyKey, DlqAction::DISCARD->value)) {
             $result = $this->idempotencyStore->result($idempotencyKey);

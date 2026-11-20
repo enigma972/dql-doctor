@@ -44,4 +44,18 @@ final class IdempotencyManagerTest extends KernelTestCase
         self::assertSame(['messageId' => '42'], $this->manager->result($this->key));
         self::assertNull((new IdempotencyManager($this->connection, new FixedTenantContext('tenant-b')))->result($this->key));
     }
+
+    public function testGlobalClaimsAreUniqueAndCanBeReadBack(): void
+    {
+        $manager = new IdempotencyManager($this->connection, new FixedTenantContext(null));
+
+        self::assertTrue($manager->claim($this->key, 'global_replay'));
+        self::assertFalse($manager->claim($this->key, 'global_replay'));
+        self::assertTrue($this->manager->claim($this->key, 'replay'));
+
+        $manager->complete($this->key, ['outcome' => 'replayed']);
+
+        self::assertSame(['outcome' => 'replayed'], $manager->result($this->key));
+        self::assertNull($this->manager->result($this->key));
+    }
 }

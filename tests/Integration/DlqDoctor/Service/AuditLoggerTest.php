@@ -35,4 +35,25 @@ final class AuditLoggerTest extends KernelTestCase
         self::assertSame('42', $audit['failed_message_id']);
         self::assertSame(['messageId' => '42'], json_decode($audit['context'], true, flags: JSON_THROW_ON_ERROR));
     }
+
+    public function testItPersistsGlobalAuditEntries(): void
+    {
+        $action = 'global_'.bin2hex(random_bytes(8));
+        $logger = new AuditLogger(
+            static::getContainer()->get(EntityManagerInterface::class),
+            new FixedTenantContext(null, 'stdio-operator'),
+        );
+
+        $logger->log($action, ['messageId' => 'global-1'], 'global-1');
+
+        $audit = static::getContainer()->get(Connection::class)->fetchAssociative(
+            'SELECT tenant_id, action, actor_id FROM dlq_audit_log WHERE tenant_id IS NULL AND action = ?',
+            [$action],
+        );
+
+        self::assertIsArray($audit);
+        self::assertNull($audit['tenant_id']);
+        self::assertSame($action, $audit['action']);
+        self::assertSame('stdio-operator', $audit['actor_id']);
+    }
 }

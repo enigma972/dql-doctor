@@ -57,6 +57,37 @@ final class MercureOutboxPublisherTest extends KernelTestCase
         }
     }
 
+    public function testPublisherDeliversGlobalEvents(): void
+    {
+        $container = static::getContainer();
+        $entityManager = $container->get(EntityManagerInterface::class);
+        $connection = $container->get(Connection::class);
+        $message = new MercureOutboxMessage(
+            null,
+            'http://localhost/proposals',
+            'proposal.updated',
+            ['proposalId' => 42, 'status' => 'pending_approval'],
+        );
+        $entityManager->persist($message);
+        $entityManager->flush();
+
+        try {
+            $hub = $this->createMock(HubInterface::class);
+            $hub->expects(self::once())
+                ->method('publish')
+                ->with(self::callback(static function (Update $update): bool {
+                    return $update->isPrivate()
+                        && ['http://localhost/proposals'] === $update->getTopics();
+                }))
+                ->willReturn('mercure-global-event-id');
+
+            self::assertSame(1, (new MercureOutboxPublisher($connection, $hub))->publishPending());
+        } finally {
+            $entityManager->remove($message);
+            $entityManager->flush();
+        }
+    }
+
     public function testPublisherRejectsAnInvalidLimit(): void
     {
         $publisher = new MercureOutboxPublisher(

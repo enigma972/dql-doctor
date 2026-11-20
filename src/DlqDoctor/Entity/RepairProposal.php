@@ -22,8 +22,8 @@ final class RepairProposal
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(length: 128)]
-    private string $tenantId;
+    #[ORM\Column(length: 128, nullable: true)]
+    private ?string $tenantId;
 
     #[ORM\Column(length: 128)]
     private string $failedMessageId;
@@ -56,7 +56,7 @@ final class RepairProposal
     private DateTimeImmutable $createdAt;
 
     public function __construct(
-        string $tenantId,
+        ?string $tenantId,
         string $failedMessageId,
         string $messageClass,
         array $originalPayload,
@@ -88,7 +88,7 @@ final class RepairProposal
         return $this->status;
     }
 
-    public function tenantId(): string
+    public function tenantId(): ?string
     {
         return $this->tenantId;
     }

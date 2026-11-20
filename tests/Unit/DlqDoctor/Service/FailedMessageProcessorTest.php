@@ -9,7 +9,6 @@ use App\DlqDoctor\Entity\RepairProposal;
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
 use App\DlqDoctor\Enum\PolicyDecision;
 use App\DlqDoctor\Enum\SensitivityLevel;
-use App\DlqDoctor\Context\MissingTenantContextException;
 use App\DlqDoctor\Messenger\GlobalTenantStamp;
 use App\DlqDoctor\Messenger\TenantStamp;
 use App\DlqDoctor\Service\AuditLoggerInterface;
@@ -58,14 +57,19 @@ final class FailedMessageProcessorTest extends TestCase
         );
     }
 
-    public function testGlobalReplayFailsBeforeIdempotencyOrTransportSideEffectsUntilGlobalPersistenceIsSupported(): void
+    public function testGlobalReplayUsesGlobalIdempotencyAndAcknowledgesTheEnvelope(): void
     {
         $store = $this->createMock(FailedMessageTransport::class);
-        $store->expects(self::never())->method('acknowledge');
+        $store->expects(self::once())->method('acknowledge');
         $sender = $this->createMock(SenderInterface::class);
-        $sender->expects(self::never())->method('send');
+        $sender->expects(self::once())
+            ->method('send')
+            ->willReturnCallback(static fn (Envelope $envelope): Envelope => $envelope);
         $idempotency = $this->createMock(IdempotencyStore::class);
-        $idempotency->expects(self::never())->method('claim');
+        $idempotency->expects(self::once())->method('claim')->willReturn(true);
+        $idempotency->expects(self::once())
+            ->method('complete')
+            ->with(self::anything(), ['outcome' => DlqProcessingOutcome::REPLAYED->value]);
 
         $processor = $this->processor(
             $store,
@@ -79,8 +83,7 @@ final class FailedMessageProcessorTest extends TestCase
             new TransportMessageIdStamp('global-message'),
         ]);
 
-        $this->expectException(MissingTenantContextException::class);
-        $processor->process($envelope);
+        self::assertSame(DlqProcessingOutcome::REPLAYED, $processor->process($envelope));
     }
 
     public function testGlobalContextDoesNotTreatAnUnstampedFailureAsGlobal(): void
@@ -135,6 +138,51 @@ final class FailedMessageProcessorTest extends TestCase
             DlqProcessingOutcome::PROPOSAL_CREATED,
             $processor->process($this->envelope(new HighSensitivityFailure(), 'message-2')),
         );
+    }
+
+    public function testGlobalApprovalPersistsAProposalWithoutTenantIdentity(): void
+    {
+        $store = $this->createMock(FailedMessageTransport::class);
+        $store->expects(self::never())->method('acknowledge');
+        $sender = $this->createMock(SenderInterface::class);
+        $sender->expects(self::never())->method('send');
+        $idempotency = $this->createMock(IdempotencyStore::class);
+        $idempotency->expects(self::once())->method('claim')->willReturn(true);
+        $idempotency->expects(self::once())->method('complete');
+        $audit = $this->createMock(AuditLoggerInterface::class);
+        $audit->expects(self::once())->method('log')->with(
+            'approval_required',
+            ['sensitivity' => 'high'],
+            'global-message',
+        );
+        $normalizer = $this->createMock(NormalizerInterface::class);
+        $normalizer->expects(self::once())->method('normalize')->willReturn(['reference' => 'safe-summary']);
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('wrapInTransaction')->willReturnCallback(
+            fn (callable $transaction): mixed => $transaction($entityManager),
+        );
+        $entityManager->expects(self::exactly(2))->method('persist')->with(self::callback(
+            static fn (object $entity): bool => $entity instanceof RepairProposal
+                ? null === $entity->tenantId()
+                : $entity instanceof \App\DlqDoctor\Entity\MercureOutboxMessage
+                    && $entity->topic() === 'http://localhost/proposals',
+        ));
+
+        $processor = $this->processor(
+            $store,
+            $sender,
+            $idempotency,
+            $audit,
+            $normalizer,
+            $entityManager,
+            tenantId: null,
+        );
+        $envelope = new Envelope(new HighSensitivityFailure(), [
+            new GlobalTenantStamp(),
+            new TransportMessageIdStamp('global-message'),
+        ]);
+
+        self::assertSame(DlqProcessingOutcome::PROPOSAL_CREATED, $processor->process($envelope));
     }
 
     public function testCompletedIdempotencyClaimAcknowledgesStaleFailureWithoutReplayingAgain(): void

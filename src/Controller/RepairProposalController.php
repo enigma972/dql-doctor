@@ -6,7 +6,6 @@ namespace App\Controller;
 
 use App\DlqDoctor\Enum\RepairProposalStatus;
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Messenger\TenantScope;
 use App\DlqDoctor\Service\FailedMessageNotFoundException;
 use App\DlqDoctor\Service\ProposalTopic;
 use App\DlqDoctor\Service\RepairProposalManager;
@@ -31,7 +30,7 @@ final class RepairProposalController extends AbstractController
     ): Response {
         return $this->render('proposal/index.html.twig', [
             'proposals' => $proposalManager->listForCurrentTenant(),
-            'topic' => $topic->forTenant(TenantScope::requireTenantId($tenantContext)),
+            'topic' => $topic->forTenant($tenantContext->tenantId()),
         ]);
     }
 
@@ -46,7 +45,7 @@ final class RepairProposalController extends AbstractController
 
         return $this->render('proposal/show.html.twig', [
             'proposal' => $proposal,
-            'topic' => $topic->forTenant(TenantScope::requireTenantId($tenantContext)),
+            'topic' => $topic->forTenant($tenantContext->tenantId()),
         ]);
     }
 
