@@ -10,8 +10,8 @@ final readonly class TenantStamp implements StampInterface
 {
     public function __construct(public string $tenantId)
     {
-        if ('' === trim($tenantId)) {
-            throw new \InvalidArgumentException('A tenant ID cannot be empty.');
+        if ('' === trim($tenantId) || strlen($tenantId) > 128) {
+            throw new \InvalidArgumentException('A tenant ID must contain between 1 and 128 characters.');
         }
     }
 }

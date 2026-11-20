@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\DlqDoctor\Entity;
 
+use App\DlqDoctor\Dto\RepairProposalSummary;
 use App\DlqDoctor\Enum\RepairProposalStatus;
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
@@ -85,6 +86,22 @@ final class RepairProposal
     public function status(): RepairProposalStatus
     {
         return $this->status;
+    }
+
+    public function summary(): RepairProposalSummary
+    {
+        if (null === $this->id) {
+            throw new DomainException('An unpersisted repair proposal has no public summary.');
+        }
+
+        return new RepairProposalSummary(
+            $this->id,
+            $this->failedMessageId,
+            $this->messageClass,
+            $this->status,
+            $this->expiresAt,
+            $this->createdAt,
+        );
     }
 
     public function approve(): void

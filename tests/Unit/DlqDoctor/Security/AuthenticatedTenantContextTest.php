@@ -23,6 +23,18 @@ final class AuthenticatedTenantContextTest extends TestCase
         );
     }
 
+    public function testContextResolvesTheCurrentIdentityRatherThanCachingThePreviousTenant(): void
+    {
+        $security = $this->createMock(Security::class);
+        $security->expects(self::exactly(2))
+            ->method('getUser')
+            ->willReturnOnConsecutiveCalls(new TenantUser('tenant-a'), new TenantUser('tenant-b'));
+        $context = new AuthenticatedTenantContext($security, 'process-tenant');
+
+        self::assertSame('tenant-a', $context->tenantId());
+        self::assertSame('tenant-b', $context->tenantId());
+    }
+
     public function testItRejectsUsersWithoutAnAssignedTenant(): void
     {
         $security = $this->createStub(Security::class);
@@ -32,6 +44,31 @@ final class AuthenticatedTenantContextTest extends TestCase
         (new AuthenticatedTenantContext($security, 'process-tenant'))->tenantId();
     }
 
+    public function testItRejectsTenantIdsThatExceedTheStorageLimit(): void
+    {
+        $security = $this->createStub(Security::class);
+        $security->method('getUser')->willReturn(new TenantUser(str_repeat('t', 129)));
+
+        $this->expectException(AccessDeniedException::class);
+        (new AuthenticatedTenantContext($security, 'process-tenant'))->tenantId();
+    }
+
+    public function testItResolvesTheAuditActorFromTheAuthenticatedUser(): void
+    {
+        $security = $this->createStub(Security::class);
+        $security->method('getUser')->willReturn(new TenantUser('authenticated-actor'));
+
+        self::assertSame('authenticated-actor', (new AuthenticatedTenantContext($security, 'process-tenant'))->actorId());
+    }
+
+    public function testCliContextHasNoAuthenticatedActor(): void
+    {
+        $security = $this->createStub(Security::class);
+        $security->method('getUser')->willReturn(null);
+
+        self::assertNull((new AuthenticatedTenantContext($security, 'process-tenant'))->actorId());
+    }
+
     public function testItFailsClosedWhenNeitherAuthenticatedUserNorProcessTenantExists(): void
     {
         $security = $this->createStub(Security::class);
@@ -39,6 +76,15 @@ final class AuthenticatedTenantContextTest extends TestCase
 
         $this->expectException(AccessDeniedException::class);
         (new AuthenticatedTenantContext($security, ''))->tenantId();
+    }
+
+    public function testItRejectsAnOversizedProcessTenant(): void
+    {
+        $security = $this->createStub(Security::class);
+        $security->method('getUser')->willReturn(null);
+
+        $this->expectException(AccessDeniedException::class);
+        (new AuthenticatedTenantContext($security, str_repeat('t', 129)))->tenantId();
     }
 }
 

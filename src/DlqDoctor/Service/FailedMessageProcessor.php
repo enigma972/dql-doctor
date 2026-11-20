@@ -8,11 +8,11 @@ use App\DlqDoctor\Entity\RepairProposal;
 use App\DlqDoctor\Enum\DlqAction;
 use App\DlqDoctor\Enum\DlqProcessingOutcome;
 use App\DlqDoctor\Enum\PolicyDecision;
+use App\DlqDoctor\Messenger\TenantContext;
 use App\DlqDoctor\Messenger\TenantStamp;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\ORM\EntityManagerInterface;
-use InvalidArgumentException;
 use LogicException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Messenger\Envelope;
@@ -38,14 +38,13 @@ final readonly class FailedMessageProcessor
         private SensitivityResolver $sensitivityResolver,
         private NormalizerInterface $normalizer,
         private EntityManagerInterface $entityManager,
+        private TenantContext $tenantContext,
     ) {
     }
 
-    public function process(Envelope $envelope, string $tenantId): DlqProcessingOutcome
+    public function process(Envelope $envelope): DlqProcessingOutcome
     {
-        if ('' === trim($tenantId)) {
-            throw new InvalidArgumentException('A tenant ID is required.');
-        }
+        $tenantId = $this->tenantContext->tenantId();
 
         if ($tenantId !== $envelope->last(TenantStamp::class)?->tenantId) {
             return DlqProcessingOutcome::OTHER_TENANT;
@@ -84,8 +83,8 @@ final readonly class FailedMessageProcessor
         }
 
         $idempotencyKey = hash('sha256', DlqAction::REPLAY->value."\0".$messageId);
-        if (!$this->idempotencyStore->claim($tenantId, $idempotencyKey, DlqAction::REPLAY->value)) {
-            $result = $this->idempotencyStore->result($tenantId, $idempotencyKey);
+        if (!$this->idempotencyStore->claim($idempotencyKey, DlqAction::REPLAY->value)) {
+            $result = $this->idempotencyStore->result($idempotencyKey);
             if (null === $result) {
                 return DlqProcessingOutcome::IN_PROGRESS;
             }
@@ -120,14 +119,12 @@ final readonly class FailedMessageProcessor
                 new DateTimeImmutable('+1 day', new DateTimeZone('UTC')),
             ));
             $this->entityManager->flush();
-            $this->idempotencyStore->complete($tenantId, $idempotencyKey, [
+            $this->idempotencyStore->complete($idempotencyKey, [
                 'outcome' => DlqProcessingOutcome::PROPOSAL_CREATED->value,
             ]);
             $this->auditLogger->log(
-                $tenantId,
                 'approval_required',
                 ['sensitivity' => $sensitivity->value],
-                null,
                 $messageId,
             );
             $this->failedTransport->acknowledge($envelope);
@@ -144,15 +141,13 @@ final readonly class FailedMessageProcessor
 
         if (PolicyDecision::AUTO_AUDIT === $decision) {
             $this->auditLogger->log(
-                $tenantId,
                 'replayed',
                 ['sensitivity' => $sensitivity->value],
-                null,
                 $messageId,
             );
         }
 
-        $this->idempotencyStore->complete($tenantId, $idempotencyKey, [
+        $this->idempotencyStore->complete($idempotencyKey, [
             'outcome' => DlqProcessingOutcome::REPLAYED->value,
         ]);
         $this->failedTransport->acknowledge($envelope);

@@ -16,6 +16,7 @@ use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\IdempotencyStore;
 use App\DlqDoctor\Service\PolicyEvaluator;
 use App\DlqDoctor\Service\SensitivityResolver;
+use App\Tests\Fixtures\DlqDoctor\FixedTenantContext;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -49,7 +50,7 @@ final class FailedMessageProcessorTest extends TestCase
 
         self::assertSame(
             DlqProcessingOutcome::REPLAYED,
-            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-1'), 'tenant-a'),
+            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-1')),
         );
     }
 
@@ -64,10 +65,8 @@ final class FailedMessageProcessorTest extends TestCase
         $idempotency->expects(self::once())->method('complete');
         $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::once())->method('log')->with(
-            'tenant-a',
             'approval_required',
             ['sensitivity' => 'high'],
-            null,
             'message-2',
         );
         $normalizer = $this->createMock(NormalizerInterface::class);
@@ -83,7 +82,7 @@ final class FailedMessageProcessorTest extends TestCase
 
         self::assertSame(
             DlqProcessingOutcome::PROPOSAL_CREATED,
-            $processor->process($this->envelope(new HighSensitivityFailure(), 'message-2'), 'tenant-a'),
+            $processor->process($this->envelope(new HighSensitivityFailure(), 'message-2')),
         );
     }
 
@@ -106,7 +105,7 @@ final class FailedMessageProcessorTest extends TestCase
 
         self::assertSame(
             DlqProcessingOutcome::ALREADY_PROCESSED,
-            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-3'), 'tenant-a'),
+            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-3')),
         );
     }
 
@@ -129,7 +128,7 @@ final class FailedMessageProcessorTest extends TestCase
 
         self::assertSame(
             DlqProcessingOutcome::IN_PROGRESS,
-            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-4'), 'tenant-a'),
+            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-4')),
         );
     }
 
@@ -147,11 +146,12 @@ final class FailedMessageProcessorTest extends TestCase
             $sender,
             $idempotency,
             $this->createStub(AuditLoggerInterface::class),
+            tenantId: 'tenant-b',
         );
 
         self::assertSame(
             DlqProcessingOutcome::OTHER_TENANT,
-            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-5'), 'tenant-b'),
+            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-5')),
         );
     }
 
@@ -173,7 +173,7 @@ final class FailedMessageProcessorTest extends TestCase
         );
 
         try {
-            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-6'), 'tenant-a');
+            $processor->process($this->envelope(new LowSensitivityFailure(), 'message-6'));
             self::fail('The sender failure should be surfaced.');
         } catch (RuntimeException $exception) {
             self::assertSame('broker unavailable', $exception->getMessage());
@@ -191,10 +191,8 @@ final class FailedMessageProcessorTest extends TestCase
         $idempotency->expects(self::once())->method('complete');
         $audit = $this->createMock(AuditLoggerInterface::class);
         $audit->expects(self::once())->method('log')->with(
-            'tenant-a',
             'replayed',
             ['sensitivity' => 'medium'],
-            null,
             'message-7',
         );
 
@@ -202,7 +200,7 @@ final class FailedMessageProcessorTest extends TestCase
 
         self::assertSame(
             DlqProcessingOutcome::REPLAYED,
-            $processor->process($this->envelope(new MediumSensitivityFailure(), 'message-7'), 'tenant-a'),
+            $processor->process($this->envelope(new MediumSensitivityFailure(), 'message-7')),
         );
     }
 
@@ -230,7 +228,7 @@ final class FailedMessageProcessorTest extends TestCase
 
         self::assertSame(
             DlqProcessingOutcome::FORBIDDEN,
-            $processor->process($this->envelope(new HighSensitivityFailure(), 'message-8'), 'tenant-a'),
+            $processor->process($this->envelope(new HighSensitivityFailure(), 'message-8')),
         );
     }
 
@@ -254,7 +252,7 @@ final class FailedMessageProcessorTest extends TestCase
         );
 
         $this->expectException(\UnexpectedValueException::class);
-        $processor->process($this->envelope(new HighSensitivityFailure(), 'message-9'), 'tenant-a');
+        $processor->process($this->envelope(new HighSensitivityFailure(), 'message-9'));
     }
 
     public function testInvalidCompletedIdempotencyResultIsNotAcknowledged(): void
@@ -275,7 +273,7 @@ final class FailedMessageProcessorTest extends TestCase
         );
 
         $this->expectException(\UnexpectedValueException::class);
-        $processor->process($this->envelope(new LowSensitivityFailure(), 'message-10'), 'tenant-a');
+        $processor->process($this->envelope(new LowSensitivityFailure(), 'message-10'));
     }
 
     private function processor(
@@ -286,6 +284,7 @@ final class FailedMessageProcessorTest extends TestCase
         ?NormalizerInterface $normalizer = null,
         ?EntityManagerInterface $entityManager = null,
         ?array $policy = null,
+        string $tenantId = 'tenant-a',
     ): FailedMessageProcessor {
         return new FailedMessageProcessor(
             $store,
@@ -300,6 +299,7 @@ final class FailedMessageProcessorTest extends TestCase
             new SensitivityResolver(),
             $normalizer ?? $this->createStub(NormalizerInterface::class),
             $entityManager ?? $this->createStub(EntityManagerInterface::class),
+            new FixedTenantContext($tenantId),
         );
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\DlqDoctor\Service;
 
+use App\DlqDoctor\Messenger\TenantContext;
 use DateTimeImmutable;
 use DateTimeZone;
 use Doctrine\DBAL\Connection;
@@ -14,14 +15,16 @@ use UnexpectedValueException;
 
 final readonly class IdempotencyManager implements IdempotencyStore
 {
-    public function __construct(private Connection $connection)
-    {
+    public function __construct(
+        private Connection $connection,
+        private TenantContext $tenantContext,
+    ) {
         if (!$connection->getDatabasePlatform() instanceof PostgreSQLPlatform) {
             throw new LogicException('Idempotency claims currently require PostgreSQL.');
         }
     }
 
-    public function claim(string $tenantId, string $key, string $action): bool
+    public function claim(string $key, string $action): bool
     {
         $affectedRows = $this->connection->executeStatement(
             <<<'SQL'
@@ -30,14 +33,14 @@ final readonly class IdempotencyManager implements IdempotencyStore
                 VALUES (?, ?, ?, 'started', NULL, ?, NULL)
                 ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
                 SQL,
-            [$tenantId, $key, $action, new DateTimeImmutable('now', new DateTimeZone('UTC'))],
+            [$this->tenantContext->tenantId(), $key, $action, new DateTimeImmutable('now', new DateTimeZone('UTC'))],
             [Types::STRING, Types::STRING, Types::STRING, Types::DATETIME_IMMUTABLE],
         );
 
         return 1 === $affectedRows;
     }
 
-    public function complete(string $tenantId, string $key, array $result): void
+    public function complete(string $key, array $result): void
     {
         $affectedRows = $this->connection->executeStatement(
             <<<'SQL'
@@ -48,7 +51,7 @@ final readonly class IdempotencyManager implements IdempotencyStore
             [
                 $result,
                 new DateTimeImmutable('now', new DateTimeZone('UTC')),
-                $tenantId,
+                $this->tenantContext->tenantId(),
                 $key,
             ],
             [Types::JSON, Types::DATETIME_IMMUTABLE, Types::STRING, Types::STRING],
@@ -59,11 +62,11 @@ final readonly class IdempotencyManager implements IdempotencyStore
         }
     }
 
-    public function result(string $tenantId, string $key): ?array
+    public function result(string $key): ?array
     {
         $result = $this->connection->fetchOne(
             "SELECT result FROM dlq_idempotency_record WHERE tenant_id = ? AND idempotency_key = ? AND status = 'completed'",
-            [$tenantId, $key],
+            [$this->tenantContext->tenantId(), $key],
             [Types::STRING, Types::STRING],
         );
 

@@ -5,22 +5,50 @@ declare(strict_types=1);
 namespace App\DlqDoctor\Service;
 
 use App\DlqDoctor\Entity\AuditLog;
+use App\DlqDoctor\Messenger\TenantContext;
 use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
+use JsonException;
 
 final readonly class AuditLogger implements AuditLoggerInterface
 {
-    public function __construct(private EntityManagerInterface $entityManager)
+    public function __construct(
+        private EntityManagerInterface $entityManager,
+        private TenantContext $tenantContext,
+    )
     {
     }
 
     public function log(
-        string $tenantId,
         string $action,
         array $context = [],
-        ?string $actorId = null,
         ?string $failedMessageId = null,
     ): void {
-        $this->entityManager->persist(new AuditLog($tenantId, $action, $context, $actorId, $failedMessageId));
+        if ('' === trim($action) || strlen($action) > 64) {
+            throw new InvalidArgumentException('An audit action must contain between 1 and 64 characters.');
+        }
+
+        try {
+            $encodedContext = json_encode($context, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidArgumentException('The audit context must be JSON serializable.', previous: $exception);
+        }
+
+        if (strlen($encodedContext) > 4096) {
+            throw new InvalidArgumentException('The audit context exceeds the 4096-byte limit.');
+        }
+
+        if (null !== $failedMessageId && strlen($failedMessageId) > 128) {
+            throw new InvalidArgumentException('An audit message ID cannot exceed 128 characters.');
+        }
+
+        $this->entityManager->persist(new AuditLog(
+            $this->tenantContext->tenantId(),
+            $action,
+            $context,
+            $this->tenantContext->actorId(),
+            $failedMessageId,
+        ));
         $this->entityManager->flush();
     }
 }

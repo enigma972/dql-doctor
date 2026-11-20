@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Command;
 
-use App\DlqDoctor\Messenger\TenantContext;
 use App\DlqDoctor\Service\DlqWatchService;
 use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -19,7 +18,6 @@ final class DlqWatchCommand extends Command
 {
     public function __construct(
         private readonly DlqWatchService $watchService,
-        private readonly TenantContext $tenantContext,
     ) {
         parent::__construct();
     }
@@ -47,10 +45,8 @@ final class DlqWatchCommand extends Command
         }
 
         $io = new SymfonyStyle($input, $output);
-        $tenantId = $this->tenantContext->tenantId();
-
         do {
-            $outcomes = $this->watchService->processBatch($tenantId, $limit);
+            $outcomes = $this->watchService->processBatch($limit);
             $io->writeln(sprintf(
                 'DLQ batch: %d replayed, %d approval proposals, %d already processed, %d in progress, %d forbidden.',
                 $outcomes['replayed'],

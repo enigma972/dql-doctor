@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Integration\DlqDoctor\Service;
 
 use App\DlqDoctor\Service\AuditLogger;
+use App\Tests\Fixtures\DlqDoctor\FixedTenantContext;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -14,9 +15,12 @@ final class AuditLoggerTest extends KernelTestCase
     public function testItPersistsTenantScopedAuditDetails(): void
     {
         $tenantId = bin2hex(random_bytes(16));
-        $logger = new AuditLogger(static::getContainer()->get(EntityManagerInterface::class));
+        $logger = new AuditLogger(
+            static::getContainer()->get(EntityManagerInterface::class),
+            new FixedTenantContext($tenantId, 'actor-1'),
+        );
 
-        $logger->log($tenantId, 'message_replayed', ['messageId' => '42'], 'actor-1', '42');
+        $logger->log('message_replayed', ['messageId' => '42'], '42');
 
         $connection = static::getContainer()->get(Connection::class);
         $audit = $connection->fetchAssociative(

@@ -25,17 +25,34 @@ final readonly class AuthenticatedTenantContext implements TenantContext
         if ($user instanceof TenantAwareUserInterface) {
             $tenantId = trim($user->tenantId());
 
-            if ('' !== $tenantId) {
+            if ('' !== $tenantId && strlen($tenantId) <= 128) {
                 return $tenantId;
             }
 
-            throw new AccessDeniedException('The authenticated user has no tenant assigned.');
+            throw new AccessDeniedException('The authenticated user has no valid tenant assigned.');
         }
 
-        if ('cli' === PHP_SAPI && '' !== trim($this->cliTenantId)) {
-            return trim($this->cliTenantId);
+        $cliTenantId = trim($this->cliTenantId);
+        if ('cli' === PHP_SAPI && '' !== $cliTenantId && strlen($cliTenantId) <= 128) {
+            return $cliTenantId;
         }
 
         throw new AccessDeniedException('An authenticated tenant context is required.');
+    }
+
+    public function actorId(): ?string
+    {
+        $user = $this->security->getUser();
+
+        if (!$user instanceof TenantAwareUserInterface) {
+            return null;
+        }
+
+        $actorId = $user->getUserIdentifier();
+        if ('' === trim($actorId) || strlen($actorId) > 128) {
+            throw new AccessDeniedException('The authenticated user has no valid audit identifier.');
+        }
+
+        return $actorId;
     }
 }

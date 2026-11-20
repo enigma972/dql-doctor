@@ -10,13 +10,14 @@ use App\DlqDoctor\Enum\DlqProcessingOutcome;
 use App\DlqDoctor\Enum\RepairProposalStatus;
 use App\DlqDoctor\Enum\SensitivityLevel;
 use App\DlqDoctor\Messenger\TenantStamp;
-use App\DlqDoctor\Service\AuditLoggerInterface;
-use App\DlqDoctor\Service\DlqWatchService;
+use App\DlqDoctor\Service\AuditLogger;
 use App\DlqDoctor\Service\FailedMessageProcessor;
 use App\DlqDoctor\Service\FailedMessageTransport;
-use App\DlqDoctor\Service\IdempotencyStore;
+use App\DlqDoctor\Service\DlqWatchService;
+use App\DlqDoctor\Service\IdempotencyManager;
 use App\DlqDoctor\Service\PolicyEvaluator;
 use App\DlqDoctor\Service\SensitivityResolver;
+use App\Tests\Fixtures\DlqDoctor\FixedTenantContext;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -40,6 +41,20 @@ final class DlqWatchServiceTest extends KernelTestCase
         $failedTransport = $container->get(FailedMessageTransport::class);
         self::assertInstanceOf(FailedMessageTransport::class, $failedTransport);
         $entityManager = $container->get(EntityManagerInterface::class);
+        $connection = $container->get(Connection::class);
+        $tenantContext = new FixedTenantContext($tenantId, 'test-actor');
+        $processor = new FailedMessageProcessor(
+            $failedTransport,
+            $container->get('messenger.transport.async'),
+            new IdempotencyManager($connection, $tenantContext),
+            new AuditLogger($entityManager, $tenantContext),
+            $container->get(PolicyEvaluator::class),
+            $container->get(SensitivityResolver::class),
+            $container->get(NormalizerInterface::class),
+            $entityManager,
+            $tenantContext,
+        );
+        $watchService = new DlqWatchService($failedTransport, $processor, $tenantContext);
         $messageIds = [];
 
         try {
@@ -49,7 +64,7 @@ final class DlqWatchServiceTest extends KernelTestCase
             $firstEnvelope = $failedTransport->find($messageIds[0]);
             self::assertNotNull($firstEnvelope);
 
-            $outcomes = $container->get(DlqWatchService::class)->processBatch($tenantId, 20);
+            $outcomes = $watchService->processBatch(20);
 
             self::assertSame(2, $outcomes[DlqProcessingOutcome::PROPOSAL_CREATED->value]);
             foreach ($messageIds as $messageId) {
@@ -64,7 +79,7 @@ final class DlqWatchServiceTest extends KernelTestCase
 
             self::assertSame(
                 DlqProcessingOutcome::ALREADY_PROCESSED,
-                $container->get(FailedMessageProcessor::class)->process($firstEnvelope, $tenantId),
+                $processor->process($firstEnvelope),
             );
         } finally {
             foreach ($messageIds as $messageId) {
@@ -79,7 +94,6 @@ final class DlqWatchServiceTest extends KernelTestCase
                 }
                 $entityManager->flush();
 
-                $connection = $container->get(Connection::class);
                 $connection->delete('dlq_audit_log', ['tenant_id' => $tenantId]);
                 $connection->delete('dlq_idempotency_record', ['tenant_id' => $tenantId]);
             }
@@ -110,18 +124,20 @@ final class DlqWatchServiceTest extends KernelTestCase
             $failedEnvelope = $failedTransport->find($messageId);
             self::assertNotNull($failedEnvelope);
             $asyncTransport = new InMemoryTransport();
+            $tenantContext = new FixedTenantContext($tenantId, 'test-actor');
             $processor = new FailedMessageProcessor(
                 $failedTransport,
                 $asyncTransport,
-                $container->get(IdempotencyStore::class),
-                $container->get(AuditLoggerInterface::class),
+                new IdempotencyManager($connection, $tenantContext),
+                new AuditLogger($entityManager, $tenantContext),
                 $container->get(PolicyEvaluator::class),
                 $container->get(SensitivityResolver::class),
                 $container->get(NormalizerInterface::class),
                 $entityManager,
+                $tenantContext,
             );
 
-            self::assertSame(DlqProcessingOutcome::REPLAYED, $processor->process($failedEnvelope, $tenantId));
+            self::assertSame(DlqProcessingOutcome::REPLAYED, $processor->process($failedEnvelope));
 
             $replayed = $asyncTransport->get();
             self::assertCount(1, $replayed);
