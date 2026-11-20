@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Integration\DlqDoctor\Service;
+
+use App\DlqDoctor\Attribute\Sensitivity;
+use App\DlqDoctor\Enum\SensitivityLevel;
+use App\DlqDoctor\Messenger\TenantStamp;
+use App\DlqDoctor\Service\FailedQueueManager;
+use App\DlqDoctor\Service\SensitivityResolver;
+use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Messenger\Stamp\ErrorDetailsStamp;
+use Symfony\Component\Messenger\Stamp\TransportMessageIdStamp;
+use Symfony\Component\Messenger\Transport\Receiver\ListableReceiverInterface;
+use Symfony\Component\Messenger\Transport\Sender\SenderInterface;
+
+final class FailedQueueManagerTest extends KernelTestCase
+{
+    public function testTenantStampAndFailureDetailsSurviveTheDoctrineTransport(): void
+    {
+        $tenantId = bin2hex(random_bytes(16));
+        $container = static::getContainer();
+        $sender = $container->get('messenger.transport.failed');
+        $receiver = $container->get('messenger.transport.failed');
+        self::assertInstanceOf(SenderInterface::class, $sender);
+        self::assertInstanceOf(ListableReceiverInterface::class, $receiver);
+
+        $sent = $sender->send(new Envelope(
+            new FailedFixtureMessage(),
+            [
+                new TenantStamp($tenantId),
+                new ErrorDetailsStamp(\RuntimeException::class, 0, 'sensitive failure text'),
+            ],
+        ));
+        $messageId = $sent->last(TransportMessageIdStamp::class)?->getId();
+        self::assertIsString($messageId);
+
+        $manager = new FailedQueueManager($receiver, new SensitivityResolver());
+        $failure = $manager->findForTenant($messageId, $tenantId);
+
+        try {
+            self::assertNotNull($failure);
+            self::assertSame($tenantId, $failure->last(TenantStamp::class)?->tenantId);
+
+            $summaries = $manager->listForTenant($tenantId);
+            self::assertCount(1, array_filter($summaries, static fn ($summary): bool => $summary->id === $messageId));
+        } finally {
+            if (null !== $failure) {
+                $receiver->ack($failure);
+            }
+        }
+    }
+}
+
+#[Sensitivity(SensitivityLevel::LOW)]
+final class FailedFixtureMessage
+{
+}

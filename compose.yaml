@@ -8,6 +8,7 @@ services:
       APP_ENV: ${APP_ENV:-dev}
       DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=18&charset=utf8"
       MESSENGER_TRANSPORT_DSN: "amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672/%2f/messages"
+      DLQ_TENANT_ID: ${DLQ_TENANT_ID:-demo}
       APP_DEMO_DETERMINISTIC: ${APP_DEMO_DETERMINISTIC:-true}
       MERCURE_URL: http://mercure/.well-known/mercure
       MERCURE_PUBLIC_URL: http://localhost:${MERCURE_PORT:-3001}/.well-known/mercure
@@ -36,6 +37,7 @@ services:
       APP_ENV: ${APP_ENV:-dev}
       DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=18&charset=utf8"
       MESSENGER_TRANSPORT_DSN: "amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672/%2f/messages"
+      DLQ_TENANT_ID: ${DLQ_TENANT_ID:-demo}
       APP_DEMO_DETERMINISTIC: ${APP_DEMO_DETERMINISTIC:-true}
       MERCURE_URL: http://mercure/.well-known/mercure
       MERCURE_PUBLIC_URL: http://localhost:${MERCURE_PORT:-3001}/.well-known/mercure
