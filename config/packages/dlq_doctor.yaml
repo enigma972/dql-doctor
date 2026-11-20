@@ -1,0 +1,14 @@
+parameters:
+    dlq_doctor.policy:
+        low:
+            replay: auto
+            patch: auto_audit
+            discard: approval
+        medium:
+            replay: auto_audit
+            patch: approval
+            discard: approval
+        high:
+            replay: approval
+            patch: approval
+            discard: forbidden
