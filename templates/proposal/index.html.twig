@@ -10,6 +10,10 @@
                 <h1>Repair proposals</h1>
                 <p class="muted">Review global or tenant-scoped proposals before any message is replayed.</p>
             </div>
+            <form method="post" action="{{ path('app_logout') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('dlq_logout') }}">
+                <button type="submit">Sign out</button>
+            </form>
         </header>
 
         {% for label, messages in app.flashes %}

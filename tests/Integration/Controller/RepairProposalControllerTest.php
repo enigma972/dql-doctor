@@ -203,7 +203,7 @@ final class RepairProposalControllerTest extends WebTestCase
     public function testDetailRequiresAuthentication(): void
     {
         $this->client->request('GET', '/proposals/'.$this->proposalId);
-        self::assertResponseStatusCodeSame(401);
+        self::assertResponseRedirects('/login');
 
         $this->client->loginUser(new TenantTestUser('viewer-'.bin2hex(random_bytes(8)), $this->tenantId, ['ROLE_DLQ_VIEWER']));
         $this->client->request('GET', '/proposals/'.$this->proposalId);

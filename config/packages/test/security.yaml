@@ -2,7 +2,14 @@ security:
     providers:
         tenant_test_users:
             id: App\Tests\Fixtures\DlqDoctor\TenantTestUserProvider
+        test_users:
+            chain:
+                providers: [tenant_test_users, app_user_provider]
 
     firewalls:
+        mcp:
+            stateless: false
+            context: main
+            provider: test_users
         main:
-            provider: tenant_test_users
+            provider: test_users

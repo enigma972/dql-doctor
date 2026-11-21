@@ -8,40 +8,47 @@ security:
 
     # https://symfony.com/doc/current/security.html#loading-the-user-the-user-provider
     providers:
-        users_in_memory: { memory: null }
+        # used to reload user from session & other features (e.g. switch_user)
+        app_user_provider:
+            entity:
+                class: App\Entity\User
+                property: username
 
     firewalls:
         dev:
             # Ensure dev tools and static assets are always allowed
             pattern: ^/(_profiler(/|$)|(_wdt|assets|build)/)
             security: false
+        mcp:
+            pattern: ^/mcp(?:/|$)
+            stateless: true
+            provider: app_user_provider
+            user_checker: App\Security\DemoUserChecker
         main:
             lazy: true
-            provider: users_in_memory
-
-            # Activate different ways to authenticate:
-            # https://symfony.com/doc/current/security.html#the-firewall
-
-            # https://symfony.com/doc/current/security/impersonating_user.html
-            # switch_user: true
+            provider: app_user_provider
+            user_checker: App\Security\DemoUserChecker
+            form_login:
+                login_path: app_login
+                check_path: app_login
+                enable_csrf: true
+                csrf_token_id: dlq_login
+                default_target_path: dlq_proposals_index
+            logout:
+                path: app_logout
+                target: app_login
+                enable_csrf: true
+                csrf_token_id: dlq_logout
 
     # Note: Only the *first* matching rule is applied
     access_control:
-        - { path: ^/mcp, roles: ROLE_DLQ_VIEWER }
+        - { path: ^/mcp(?:/|$), roles: ROLE_DLQ_VIEWER }
         - { path: ^/proposals, roles: ROLE_DLQ_VIEWER }
 
 when@dev:
     security:
-        providers:
-            dlq_demo_users:
-                memory:
-                    users:
-                        demo:
-                            password: '%env(default::DLQ_DEMO_PASSWORD_HASH)%'
-                            roles: [ROLE_DLQ_OPERATOR]
         firewalls:
-            main:
-                provider: dlq_demo_users
+            mcp:
                 http_basic:
                     realm: 'DLQ Doctor local demo'
 
