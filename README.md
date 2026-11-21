@@ -29,16 +29,21 @@ The local demo uses deterministic diagnosis by default (`APP_DEMO_DETERMINISTIC=
 
 ### Review the proposals
 
-The UI and MCP endpoints remain protected. To enable the **dev-only** `demo` operator, generate a hash from a password you choose and restart the app:
+The UI and MCP endpoints remain protected. To create the **dev-only** global `demo` operator, choose a throwaway password in Bash and load the fixture explicitly:
 
-```sh
-read -rs -p 'Local demo password: ' DEMO_PASSWORD; printf '\n'
-export DLQ_DEMO_PASSWORD_HASH="$(printf '%s' "$DEMO_PASSWORD" | docker compose exec -T app php -r 'echo password_hash(stream_get_contents(STDIN), PASSWORD_BCRYPT);')"
-unset DEMO_PASSWORD
-docker compose up -d --wait app
+```bash
+read -rs -p 'Local demo password: ' DLQ_DEMO_PASSWORD; printf '\n'
+export DLQ_DEMO_PASSWORD
+docker compose up -d --build --wait app
+docker compose exec app php bin/console doctrine:fixtures:load --group=dlq-demo --append --no-interaction
+unset DLQ_DEMO_PASSWORD
 ```
 
-Open [http://localhost/proposals](http://localhost/proposals) and sign in as `demo`. Review the MEDIUM, HIGH, or unclassified proposal. Approve or reject a proposal; the original failure is replayed only after approval. Keep the page open while injecting and scanning another set to see private Mercure updates.
+Keep `--append`: without it, Doctrine Fixtures can purge existing data. Re-running the command with the same password does not create another account or overwrite an existing one. The database stores only the password hash.
+
+Open [http://localhost/](http://localhost/) and sign in. The development form shows `demo` and the configured demo password as placeholders, so **only use a disposable password and keep the development app local**. These hints and the demo account are disabled outside `dev`. The same account can authenticate a local MCP client with HTTP Basic; a browser session does not authenticate MCP requests.
+
+Review the MEDIUM, HIGH, or unclassified proposal. Approve or reject a proposal; the original failure is replayed only after approval. Keep the page open while injecting and scanning another set to see private Mercure updates.
 
 Patch dry runs validate a proposed payload and report a diff; the current UI does not submit or apply a patched payload. The configured LOW-risk policy also permits an agent-suggested patch to be applied automatically only after deserialization into the original message class and Symfony validation; the replay and changed property names are audited. MEDIUM and HIGH cases remain approval-gated.
 
@@ -52,6 +57,7 @@ Patch dry runs validate a proposed payload and report a diff; the current UI doe
   docker compose up -d --wait
   ```
 
+- In development, opening the login or proposal pages on `127.0.0.1` redirects to the configured Mercure host (`localhost` by default), because private Mercure cookies are host-specific. Existing sessions on the other host require signing in again. The app and `MERCURE_PUBLIC_URL` must use the same local port.
 - PostgreSQL and RabbitMQ are reachable by service name from the Compose network and are not published to the host by default.
 - For startup or migration problems, inspect `docker compose ps -a` and `docker compose logs migrate app`.
 - For retries and DLQ transitions, inspect `docker compose logs worker`; run `app:dlq:watch --once` only after retry delivery has finished.

@@ -6,7 +6,7 @@ The application exposes the DLQ Doctor tools through the experimental [Symfony M
 
 The endpoint is `POST /mcp` (with the other Streamable HTTP protocol methods handled by the bundle) and is localhost-only by default. `config/packages/security.yaml` requires `ROLE_DLQ_VIEWER` for the endpoint. Listing, contract inspection, and dry-run require that role; replay and discard additionally require `ROLE_DLQ_OPERATOR`. Tenant users are scoped to their authenticated tenant. With the local global demo user, tools see only explicitly global failures. No tool accepts a tenant ID.
 
-The repository's default `users_in_memory` provider is a placeholder and does not define an authenticated tenant-aware user. Configure the application's actual authenticator and user provider before connecting a client. Do not expose the endpoint remotely by changing `http.allowed_hosts` alone: allowed hosts are not authentication. Use HTTPS and a real authenticated tenant-aware identity for remote access.
+The MCP firewall is separate from the session-based web login. In development it accepts HTTP Basic using the same Doctrine demo account; browser sessions are not accepted. Outside development there is no MCP authenticator configured by default. Configure a production authenticator and a tenant-aware user provider before connecting a remote client. Do not expose the endpoint remotely by changing `http.allowed_hosts` alone: allowed hosts are not authentication. Use HTTPS for remote access.
 
 ## Tools
 
@@ -34,7 +34,7 @@ Configure a compatible MCP client to use the Streamable HTTP URL for the local a
 }
 ```
 
-Supply credentials through the client's HTTP authentication settings. For the local Compose demo, see the [README](../README.md) for enabling the dev-only Basic authentication user. Production requires a real tenant-aware identity. The application installs `nyholm/psr7` to supply the PSR-17 HTTP factory used by the bundle.
+Supply credentials through the client's HTTP authentication settings. For the local Compose demo, see the [README](../README.md) for loading the dev-only operator fixture. Production requires a real tenant-aware identity. The application installs `nyholm/psr7` to supply the PSR-17 HTTP factory used by the bundle.
 
 ## Verification
 
