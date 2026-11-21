@@ -7,9 +7,12 @@ DLQ Doctor reviews Symfony Messenger failures and routes sensitive replays throu
 ### Prerequisites
 
 - Docker Engine and Docker Compose v2
+- GNU Make, if using the optional Makefile shortcuts
 - An available host port 80 (or set `APP_HTTP_PORT` as shown below)
 
 No host PHP, tenant header, tenant environment variable, or AI API key is required. Compose builds the app and CLI worker, applies migrations, and starts PostgreSQL, RabbitMQ, the Messenger worker, and the outbox publisher.
+
+The commands below use Docker Compose directly. For equivalent shortcuts, see [Makefile shortcuts](#makefile-shortcuts), or run `make help`.
 
 ```sh
 docker compose up -d --wait
@@ -65,6 +68,33 @@ Patch dry runs validate a proposed payload and report a diff; the current UI doe
 - After source or Dockerfile changes, rebuild with `docker compose up -d --build --wait`.
 
 Stop the stack without deleting persistent data with `docker compose down`. The database and embedded Mercure data use named volumes. Do not use `docker compose down -v` unless you intentionally want to erase them; DLQ records, proposals, and audit records do not have automatic cleanup.
+
+### Makefile shortcuts
+
+Run `make help` to list the available commands. They use `compose.yaml` plus `compose.override.yaml` by default; pass `MODE=dev` to use the standalone `compose.dev.yaml` instead, which bind-mounts the working tree into the app and workers. Both modes use the same Compose project and named volumes by default: switching modes can recreate containers and leave services absent from the selected file (such as the default mode's mailer) as orphans. The dev bind mount also requires host dependencies in `vendor/`; the migration service still uses the built image. Rebuild images after dependency or migration changes.
+
+```sh
+make up                              # start and wait for services
+make build                           # build images without starting services
+make rebuild                         # rebuild all images and restart the stack
+make ps                              # inspect service status
+make logs SERVICE=worker             # follow a single service's logs
+make stop                            # stop services without removing containers
+make start                           # start stopped services
+make restart SERVICE=worker          # restart one service
+make shell                           # open a shell in the app container
+make migrate                         # apply database migrations
+make fixtures                        # load the configured demo user without purging
+make chaos                           # queue the demo messages
+sleep 10 && make watch               # process a single DLQ batch
+make watch-loop                      # or watch continuously until interrupted
+make console ARGS="debug:router"     # run a Symfony console command
+make test ARGS="tests/Unit"          # run a focused PHPUnit selection
+make config                          # validate the selected Compose configuration
+make down                            # remove containers and network, not volumes
+```
+
+For the bind-mounted setup, use the same mode for every command, for example `make MODE=dev up` and `make MODE=dev watch`. To load the demo operator, configure `DLQ_DEMO_PASSWORD` and restart the app as in the steps above, then run `make fixtures`; it always uses `--append`. `make test` uses `APP_ENV=test` and requires the separate test database and migrations to have been prepared. Compose environment variables such as `APP_HTTP_PORT` and `MERCURE_PUBLIC_URL` still apply.
 
 ## Scope and limitations
 
