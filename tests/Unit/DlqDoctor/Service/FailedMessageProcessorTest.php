@@ -24,6 +24,7 @@ use App\Tests\Fixtures\DlqDoctor\FixedTenantContext;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Symfony\AI\Platform\Exception\ServerException;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Stamp\ErrorDetailsStamp;
 use Symfony\Component\Messenger\Stamp\SentToFailureTransportStamp;
@@ -33,6 +34,57 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 final class FailedMessageProcessorTest extends TestCase
 {
+    public function testProviderFailureDoesNotCreateApprovalOrReplay(): void
+    {
+        $store = $this->createMock(FailedMessageTransport::class);
+        $store->expects(self::never())->method('acknowledge');
+        $sender = $this->createMock(SenderInterface::class);
+        $sender->expects(self::never())->method('send');
+        $idempotency = $this->createMock(IdempotencyStore::class);
+        $idempotency->method('claim')->willReturn(true);
+        $idempotency->expects(self::never())->method('complete');
+        $applier = $this->createMock(AutomaticPatchApplierInterface::class);
+        $applier->expects(self::once())->method('apply')->willThrowException(new ServerException(503));
+        $normalizer = $this->createStub(NormalizerInterface::class);
+        $normalizer->method('normalize')->willReturn(['reference' => 'safe-summary']);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('wrapInTransaction')->willReturnCallback(fn ($transaction) => $transaction($em));
+        $em->expects(self::never())->method('persist');
+        $processor = $this->processor($store, $sender, $idempotency, $this->createStub(AuditLoggerInterface::class), $normalizer, $em, applier: $applier);
+
+        $this->expectException(ServerException::class);
+        $processor->process($this->envelope(new HighSensitivityFailure(), 'unavailable'));
+    }
+
+    public function testHighSuggestionIsStoredWithoutApplyingItToTheFailure(): void
+    {
+        $original = new HighSensitivityFailure('broken');
+        $patched = new HighSensitivityFailure('repaired');
+        $applier = $this->createMock(AutomaticPatchApplierInterface::class);
+        $applier->expects(self::once())->method('apply')->with($original, \RuntimeException::class)
+            ->willReturn(new \App\DlqDoctor\Dto\AutomaticPatchResult($patched, ['reference']));
+        $normalizer = $this->createStub(NormalizerInterface::class);
+        $normalizer->method('normalize')->willReturnCallback(static fn ($message) => ['reference' => $message->reference]);
+        $store = $this->createMock(FailedMessageTransport::class);
+        $store->expects(self::never())->method('acknowledge');
+        $sender = $this->createMock(SenderInterface::class);
+        $sender->expects(self::never())->method('send');
+        $idempotency = $this->createStub(IdempotencyStore::class);
+        $idempotency->method('claim')->willReturn(true);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('wrapInTransaction')->willReturnCallback(fn ($transaction) => $transaction($em));
+        $em->expects(self::exactly(2))->method('persist')->willReturnCallback(static function ($entity): void {
+            if ($entity instanceof RepairProposal) {
+                self::assertSame(['reference' => 'broken'], $entity->originalPayload());
+                self::assertSame(['reference' => 'repaired'], $entity->patchedPayload());
+                self::assertSame([['path' => 'reference', 'originalValue' => 'broken', 'proposedValue' => 'repaired']], $entity->diff());
+            }
+        });
+        $processor = $this->processor($store, $sender, $idempotency, $this->createStub(AuditLoggerInterface::class), $normalizer, $em, applier: $applier);
+        self::assertSame(DlqProcessingOutcome::PROPOSAL_CREATED, $processor->process($this->envelope($original, 'repair')));
+        self::assertSame('broken', $original->reference);
+    }
+
     public function testLowSensitivityFailureIsReplayedToAsyncAndAcknowledged(): void
     {
         $store = $this->createMock(FailedMessageTransport::class);
@@ -402,6 +454,7 @@ final class FailedMessageProcessorTest extends TestCase
         ?EntityManagerInterface $entityManager = null,
         ?array $policy = null,
         ?string $tenantId = 'tenant-a',
+        ?AutomaticPatchApplierInterface $applier = null,
     ): FailedMessageProcessor {
         $entityManager ??= $this->createStub(EntityManagerInterface::class);
 
@@ -417,7 +470,7 @@ final class FailedMessageProcessorTest extends TestCase
             ]),
             new SensitivityResolver(),
             $normalizer ?? $this->createStub(NormalizerInterface::class),
-            $this->createStub(AutomaticPatchApplierInterface::class),
+            $applier ?? $this->createStub(AutomaticPatchApplierInterface::class),
             $entityManager,
             new FixedTenantContext($tenantId),
             new ProposalEventRecorder($entityManager, new ProposalTopic()),

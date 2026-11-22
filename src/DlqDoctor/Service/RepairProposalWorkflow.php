@@ -117,7 +117,7 @@ final readonly class RepairProposalWorkflow
                     throw new InvalidArgumentException('The failed message payload no longer matches the proposal.');
                 }
 
-                if (count($this->validator->validate($message)) > 0) {
+                if (null === $proposal->patchedPayload() && count($this->validator->validate($message)) > 0) {
                     throw new InvalidArgumentException('The failed message no longer satisfies message validation.');
                 }
 
@@ -130,7 +130,11 @@ final readonly class RepairProposalWorkflow
 
                     $this->assertPolicyAllows($proposal->messageClass(), DlqAction::PATCH);
                     $message = $this->restoreMessage($patchedPayload, $proposal->messageClass());
-                    $envelope = $envelope->with($message);
+                    $stamps = [];
+                    foreach ($envelope->all() as $envelopeStamps) {
+                        array_push($stamps, ...$envelopeStamps);
+                    }
+                    $envelope = new Envelope($message, $stamps);
                 }
 
                 $approvalKey = $this->approvalIdempotencyKey($proposal);

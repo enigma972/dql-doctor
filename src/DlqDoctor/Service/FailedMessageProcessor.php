@@ -178,13 +178,40 @@ final readonly class FailedMessageProcessor
                 return DlqProcessingOutcome::ALREADY_PROCESSED;
             }
 
+            $patchedPayload = null;
+            $diff = null;
+            $patchDecision = $this->policyEvaluator->evaluate($this->sensitivityResolver->resolve($messageClass), DlqAction::PATCH);
+            if (PolicyDecision::FORBIDDEN !== $patchDecision) {
+                $errorClass = $envelope->last(ErrorDetailsStamp::class)?->getExceptionClass() ?? \RuntimeException::class;
+                $suggestion = $this->automaticPatchApplier->apply($envelope->getMessage(), $errorClass);
+                if (null !== $suggestion) {
+                    $normalizedPatch = $this->normalizer->normalize($suggestion->message);
+                    if (!is_array($normalizedPatch)) {
+                        throw new UnexpectedValueException('The suggested message did not normalize to an object payload.');
+                    }
+                    $encodedPatch = json_encode($normalizedPatch, JSON_THROW_ON_ERROR);
+                    if (strlen($encodedPatch) > self::MAX_PROPOSAL_PAYLOAD_BYTES) {
+                        throw new UnexpectedValueException('The suggested message payload exceeds the 65536-byte proposal limit.');
+                    }
+                    $patchedPayload = json_decode($encodedPatch, true, flags: JSON_THROW_ON_ERROR);
+                    $diff = array_map(static fn (string $property): array => [
+                        'path' => $property,
+                        'originalValue' => $payload[$property] ?? null,
+                        'proposedValue' => $patchedPayload[$property] ?? null,
+                    ], $suggestion->changedProperties);
+                    if (strlen(json_encode($diff, JSON_THROW_ON_ERROR)) > self::MAX_PROPOSAL_PAYLOAD_BYTES) {
+                        throw new UnexpectedValueException('The suggested diff exceeds the 65536-byte proposal limit.');
+                    }
+                }
+            }
+
             $proposal = new RepairProposal(
                 $tenantId,
                 $messageId,
                 $messageClass,
                 $payload,
-                null,
-                null,
+                $patchedPayload,
+                $diff,
                 null,
                 $idempotencyKey,
                 new DateTimeImmutable('+1 day', new DateTimeZone('UTC')),

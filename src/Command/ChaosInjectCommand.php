@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\DlqDoctor\Context\TenantContextInterface;
-use App\DlqDoctor\Demo\Chaos\ChaosHighMessage;
+use App\DlqDoctor\Demo\Chaos\RepairableChaosHighMessage;
 use App\DlqDoctor\Demo\Chaos\ChaosLowMessage;
-use App\DlqDoctor\Demo\Chaos\ChaosMediumMessage;
-use App\DlqDoctor\Demo\Chaos\ChaosUnclassifiedMessage;
+use App\DlqDoctor\Demo\Chaos\RepairableChaosMediumMessage;
+use App\DlqDoctor\Demo\Chaos\RepairableChaosUnclassifiedMessage;
 use App\DlqDoctor\Messenger\GlobalTenantStamp;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -36,9 +36,9 @@ final readonly class ChaosInjectCommand
 
         foreach ([
             new ChaosLowMessage(sprintf('chaos-low-%s', bin2hex(random_bytes(6)))),
-            new ChaosMediumMessage(sprintf('chaos-medium-%s', bin2hex(random_bytes(6)))),
-            new ChaosHighMessage(sprintf('chaos-high-%s', bin2hex(random_bytes(6)))),
-            new ChaosUnclassifiedMessage(sprintf('chaos-unclassified-%s', bin2hex(random_bytes(6)))),
+            new RepairableChaosMediumMessage(sprintf('chaos-medium-%s', bin2hex(random_bytes(6)))),
+            new RepairableChaosHighMessage(sprintf('chaos-high-%s', bin2hex(random_bytes(6)))),
+            new RepairableChaosUnclassifiedMessage(sprintf('chaos-unclassified-%s', bin2hex(random_bytes(6)))),
         ] as $message) {
             $this->messageBus->dispatch(
                 $message,

@@ -15,11 +15,11 @@ use App\DlqDoctor\Service\DlqWatchService;
 use App\DlqDoctor\Service\FailedMessageTransport;
 use App\DlqDoctor\Service\PolicyEvaluator;
 use App\DlqDoctor\Service\SensitivityResolver;
-use App\DlqDoctor\Demo\Chaos\ChaosHighMessage;
+use App\DlqDoctor\Demo\Chaos\RepairableChaosHighMessage as ChaosHighMessage;
 use App\DlqDoctor\Demo\Chaos\ChaosLowMessage;
 use App\DlqDoctor\Demo\Chaos\ChaosMessageHandler;
-use App\DlqDoctor\Demo\Chaos\ChaosMediumMessage;
-use App\DlqDoctor\Demo\Chaos\ChaosUnclassifiedMessage;
+use App\DlqDoctor\Demo\Chaos\RepairableChaosMediumMessage as ChaosMediumMessage;
+use App\DlqDoctor\Demo\Chaos\RepairableChaosUnclassifiedMessage as ChaosUnclassifiedMessage;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\Group;
@@ -84,6 +84,9 @@ final class ChaosScenariosTest extends KernelTestCase
             self::assertCount(3, $scenarioProposals);
             foreach ($scenarioProposals as $proposal) {
                 self::assertSame(RepairProposalStatus::PENDING_APPROVAL, $proposal->status());
+                self::assertSame('invalid', $proposal->originalPayload()['status']);
+                self::assertSame('ready', $proposal->patchedPayload()['status']);
+                self::assertSame([['path' => 'status', 'originalValue' => 'invalid', 'proposedValue' => 'ready']], $proposal->diff());
             }
             self::assertSame(
                 3,
@@ -120,6 +123,33 @@ final class ChaosScenariosTest extends KernelTestCase
 
             foreach (array_slice($messageIds, 1) as $messageId) {
                 self::assertNotNull($transport->find($messageId), 'Approval-required messages must remain in the failure transport.');
+            }
+
+            self::assertCount(1, $asyncTransport->getSent(), 'Only LOW may be sent before approval.');
+            $container->get('security.token_storage')->setToken(new \Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken(
+                new \App\Tests\Fixtures\DlqDoctor\GlobalTestUser('reviewer', ['ROLE_DLQ_OPERATOR', 'ROLE_DLQ_VIEWER']),
+                'main',
+                ['ROLE_DLQ_OPERATOR', 'ROLE_DLQ_VIEWER'],
+            ));
+            $workflow = $container->get(\App\DlqDoctor\Service\RepairProposalWorkflow::class);
+            foreach ($scenarioProposals as $proposal) {
+                $id = $proposal->getId();
+                self::assertNotNull($id);
+                $review = $workflow->review($id);
+                self::assertNotNull($review?->approvalToken);
+                self::assertSame(RepairProposalStatus::REPLAYED, $workflow->approve($id, $review->approvalToken));
+                self::assertNull($transport->find($proposal->failedMessageId()));
+            }
+            foreach ($asyncTransport->get() as $replayed) {
+                $message = $replayed->getMessage();
+                self::assertSame('ready', $message->status);
+                $handler = new ChaosMessageHandler();
+                match ($message::class) {
+                    ChaosMediumMessage::class => $handler->handleRepairableMedium($message),
+                    ChaosHighMessage::class => $handler->handleRepairableHigh($message),
+                    ChaosUnclassifiedMessage::class => $handler->handleRepairableUnclassified($message),
+                };
+                $asyncTransport->ack($replayed);
             }
         } finally {
             foreach ($messageIds as $messageId) {

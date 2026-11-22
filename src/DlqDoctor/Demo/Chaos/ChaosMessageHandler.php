@@ -39,6 +39,24 @@ final class ChaosMessageHandler
         $this->failUntilRetriesExhausted($message);
     }
 
+    #[AsMessageHandler]
+    public function handleRepairableMedium(RepairableChaosMediumMessage $message): void
+    {
+        $this->failUntilRepaired($message);
+    }
+
+    #[AsMessageHandler]
+    public function handleRepairableHigh(RepairableChaosHighMessage $message): void
+    {
+        $this->failUntilRepaired($message);
+    }
+
+    #[AsMessageHandler]
+    public function handleRepairableUnclassified(RepairableChaosUnclassifiedMessage $message): void
+    {
+        $this->failUntilRepaired($message);
+    }
+
     private function failUntilRetriesExhausted(ChaosMessage $message): void
     {
         ++$message->attempts;
@@ -46,6 +64,19 @@ final class ChaosMessageHandler
         if ($message->attempts <= self::FAILURE_ATTEMPTS) {
             throw new RuntimeException(sprintf(
                 'Synthetic chaos failure for %s (attempt %d).',
+                $message->reference,
+                $message->attempts,
+            ));
+        }
+    }
+
+    private function failUntilRepaired(RepairableChaosMessage $message): void
+    {
+        ++$message->attempts;
+
+        if ('ready' !== $message->status) {
+            throw new RuntimeException(sprintf(
+                'Synthetic chaos failure for %s: status must be ready (attempt %d).',
                 $message->reference,
                 $message->attempts,
             ));
