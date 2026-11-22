@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Sign in | DLQ Doctor{% endblock %}
+
+{% block body %}
+    <main class="page">
+        <h1>Sign in to DLQ Doctor</h1>
+        <form class="panel" method="post" action="{{ path('app_login') }}">
+            {% if error %}
+                <p role="alert">{{ error.messageKey|trans(error.messageData, 'security') }}</p>
+            {% endif %}
+            {% if demo_username is not null %}
+                <p>Local demo: enter the credentials shown in the fields below.</p>
+            {% endif %}
+            <p>
+                <label for="username">Username</label>
+                <input id="username" name="_username" value="{{ last_username }}" autocomplete="username"{% if demo_username is not null %} placeholder="{{ demo_username }}"{% endif %} required autofocus>
+            </p>
+            <p>
+                <label for="password">Password</label>
+                <input type="password" id="password" name="_password" autocomplete="current-password"{% if demo_password is not null %} placeholder="{{ demo_password }}"{% endif %} required>
+            </p>
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token('dlq_login') }}">
+            <button type="submit">Sign in</button>
+        </form>
+    </main>
+{% endblock %}

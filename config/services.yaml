@@ -9,6 +9,14 @@
 parameters:
 
 services:
+    App\DlqDoctor\Service\FailedMessageTransport: '@App\DlqDoctor\Service\DoctrineFailedMessageTransport'
+    App\DlqDoctor\Service\FailedMessageReader: '@App\DlqDoctor\Service\DoctrineFailedMessageTransport'
+    App\DlqDoctor\Service\IdempotencyStore: '@App\DlqDoctor\Service\IdempotencyManager'
+    App\DlqDoctor\Service\AuditLoggerInterface: '@App\DlqDoctor\Service\AuditLogger'
+    App\DlqDoctor\Agent\DlqDoctorAgentInterface: '@App\DlqDoctor\Agent\ConfiguredDlqDoctorAgent'
+    App\DlqDoctor\Context\TenantContextInterface: '@App\DlqDoctor\Context\TenantContext'
+    App\DlqDoctor\Context\TenantResolverInterface: '@App\DlqDoctor\Context\NullTenantResolver'
+
     # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
@@ -18,6 +26,21 @@ services:
     # this creates a service per class whose id is the fully-qualified class name
     App\:
         resource: '../src/'
+        exclude: '../src/DataFixtures/'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+when@dev:
+    services:
+        App\DataFixtures\DemoUserFixture:
+            autowire: true
+            autoconfigure: true
+
+when@test:
+    services:
+        App\DlqDoctor\Agent\ConfiguredDlqDoctorAgent:
+            autowire: true
+            public: true
+        App\Tests\Fixtures\DlqDoctor\TenantTestUserProvider:
+            public: true

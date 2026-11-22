@@ -1,0 +1,15 @@
+parameters:
+    dlq_doctor.require_tenant: false
+    dlq_doctor.policy:
+        low:
+            replay: auto_audit
+            patch: auto_audit
+            discard: approval
+        medium:
+            replay: approval
+            patch: approval
+            discard: approval
+        high:
+            replay: approval
+            patch: approval
+            discard: forbidden

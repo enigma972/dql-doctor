@@ -1,0 +1,77 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Review proposal {{ proposal.summary.id }}{% endblock %}
+
+{% block body %}
+    <main class="page" data-controller="proposal-updates" data-proposal-updates-url-value="{{ mercure(topic, { subscribe: [topic] }) }}">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <a href="{{ path('dlq_proposals_index') }}">Repair proposals</a>
+            <span aria-hidden="true">/</span>
+            <span>Proposal {{ proposal.summary.id }}</span>
+        </nav>
+
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <p class="flash flash-{{ label }}" role="status">{{ message }}</p>
+            {% endfor %}
+        {% endfor %}
+
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">Human review</p>
+                <h1>Proposal {{ proposal.summary.id }}</h1>
+                <p class="muted">{{ proposal.summary.messageClass }} · failed message {{ proposal.summary.failedMessageId }}</p>
+            </div>
+            <span class="status status-{{ proposal.status.value }}">{{ proposal.status.value|replace({'_': ' '})|title }}</span>
+        </header>
+
+        <section class="panel" aria-labelledby="proposal-metadata-heading">
+            <h2 id="proposal-metadata-heading">Proposal details</h2>
+            <dl class="metadata">
+                <div><dt>Created</dt><dd><time datetime="{{ proposal.summary.createdAt|date('c') }}">{{ proposal.summary.createdAt|date('Y-m-d H:i T') }}</time></dd></div>
+                <div><dt>Expires</dt><dd><time datetime="{{ proposal.summary.expiresAt|date('c') }}">{{ proposal.summary.expiresAt|date('Y-m-d H:i T') }}</time></dd></div>
+            </dl>
+        </section>
+
+        <div class="payload-grid">
+            <section class="panel" aria-labelledby="original-payload-heading">
+                <h2 id="original-payload-heading">Original payload</h2>
+                <pre><code>{{ proposal.originalPayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</code></pre>
+            </section>
+            <section class="panel" aria-labelledby="proposed-payload-heading">
+                <h2 id="proposed-payload-heading">Proposed payload</h2>
+                {% if proposal.patchedPayload is null %}
+                    <p class="empty-state">No payload changes were proposed. Approval replays the original message.</p>
+                {% else %}
+                    <pre><code>{{ proposal.patchedPayload|json_encode(constant('JSON_PRETTY_PRINT')) }}</code></pre>
+                {% endif %}
+            </section>
+        </div>
+
+        {% if proposal.diff is not null %}
+            <section class="panel" aria-labelledby="proposal-diff-heading">
+                <h2 id="proposal-diff-heading">Payload diff</h2>
+                <pre><code>{{ proposal.diff|json_encode(constant('JSON_PRETTY_PRINT')) }}</code></pre>
+            </section>
+        {% endif %}
+
+        {% if proposal.approvalToken is not null %}
+            <section class="panel action-panel" aria-labelledby="review-actions-heading">
+                <h2 id="review-actions-heading">Review action</h2>
+                <p class="muted">Each review token is single-use. Reopening this page replaces the previous token.</p>
+                <div class="actions">
+                    <form method="post" action="{{ path('dlq_proposals_approve', {id: proposal.summary.id}) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('approve_proposal_' ~ proposal.summary.id) }}">
+                        <input type="hidden" name="approval_token" value="{{ proposal.approvalToken }}">
+                        <button class="button button-primary" type="submit">Approve and replay</button>
+                    </form>
+                    <form method="post" action="{{ path('dlq_proposals_reject', {id: proposal.summary.id}) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('reject_proposal_' ~ proposal.summary.id) }}">
+                        <input type="hidden" name="approval_token" value="{{ proposal.approvalToken }}">
+                        <button class="button button-danger" type="submit">Reject proposal</button>
+                    </form>
+                </div>
+            </section>
+        {% endif %}
+    </main>
+{% endblock %}

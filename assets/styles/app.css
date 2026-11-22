@@ -1,3 +1,277 @@
+:root {
+    color-scheme: light;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #172033;
+    background: #f3f6fb;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+}
+
+* {
+    box-sizing: border-box;
+}
+
 body {
-    background-color: skyblue;
+    margin: 0;
+}
+
+a {
+    color: #2457c5;
+}
+
+.page {
+    width: min(1120px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 3rem 0;
+}
+
+.page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin: 1.5rem 0 2rem;
+}
+
+h1,
+h2,
+p {
+    margin-top: 0;
+}
+
+h1 {
+    margin-bottom: 0.5rem;
+    font-size: clamp(2rem, 5vw, 3rem);
+    letter-spacing: -0.04em;
+}
+
+h2 {
+    font-size: 1.1rem;
+}
+
+.eyebrow {
+    margin-bottom: 0.5rem;
+    color: #53627d;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.muted,
+.empty-state {
+    color: #65728a;
+}
+
+.panel {
+    margin: 1.25rem 0;
+    padding: 1.5rem;
+    border: 1px solid #dfe5ef;
+    border-radius: 0.9rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgb(23 32 51 / 4%);
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+th,
+td {
+    padding: 0.9rem 0.75rem;
+    border-bottom: 1px solid #edf0f5;
+    vertical-align: middle;
+}
+
+th {
+    color: #65728a;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+tr:last-child td {
+    border-bottom: 0;
+}
+
+.message-class,
+td .muted {
+    display: block;
+}
+
+.message-class {
+    margin-bottom: 0.25rem;
+    overflow-wrap: anywhere;
+    font-weight: 650;
+}
+
+.status {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.35rem 0.65rem;
+    background: #edf1f8;
+    color: #384967;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-pending_approval {
+    background: #fff3d4;
+    color: #775000;
+}
+
+.status-approved,
+.status-replayed {
+    background: #dff4e8;
+    color: #17653a;
+}
+
+.status-rejected,
+.status-expired {
+    background: #fbe5e5;
+    color: #8c2828;
+}
+
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.6rem;
+    border: 1px solid transparent;
+    border-radius: 0.55rem;
+    padding: 0.6rem 1rem;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.button-primary {
+    background: #2457c5;
+    color: #fff;
+}
+
+.button-secondary {
+    border-color: #cbd5e4;
+    background: #fff;
+    color: #2457c5;
+}
+
+.button-danger {
+    border-color: #e4baba;
+    background: #fff;
+    color: #9b2f2f;
+}
+
+.button:focus-visible,
+a:focus-visible,
+button:focus-visible {
+    outline: 3px solid #9ab7fa;
+    outline-offset: 2px;
+}
+
+.breadcrumbs {
+    display: flex;
+    gap: 0.6rem;
+    color: #65728a;
+}
+
+.metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin-bottom: 0;
+}
+
+.metadata dt {
+    margin-bottom: 0.25rem;
+    color: #65728a;
+    font-size: 0.8rem;
+}
+
+.metadata dd {
+    margin: 0;
+    font-weight: 650;
+}
+
+.payload-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+pre {
+    overflow: auto;
+    max-height: 32rem;
+    margin: 0;
+    border-radius: 0.6rem;
+    padding: 1rem;
+    background: #111827;
+    color: #e8edf7;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    tab-size: 2;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.flash {
+    border-radius: 0.6rem;
+    padding: 0.9rem 1rem;
+}
+
+.flash-success {
+    background: #dff4e8;
+    color: #17653a;
+}
+
+.flash-warning {
+    background: #fff3d4;
+    color: #775000;
+}
+
+.flash-error {
+    background: #fbe5e5;
+    color: #8c2828;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    clip-path: inset(50%);
+}
+
+@media (max-width: 760px) {
+    .page {
+        padding: 1.5rem 0;
+    }
+
+    .page-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .payload-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .panel {
+        padding: 1rem;
+    }
 }

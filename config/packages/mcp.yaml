@@ -1,0 +1,11 @@
+mcp:
+    servers:
+        default:
+            registry:
+                tools:
+                    - 'App\Mcp\'
+
+            http:
+                path: /mcp
+                # Only localhost is allowed by default. Add hostnames without ports for remote access.
+                # allowed_hosts: ['localhost', 'mcp.example.com']

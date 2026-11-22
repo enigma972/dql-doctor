@@ -1,0 +1,11 @@
+.git
+.env.local
+.env.*.local
+.env.local.php
+config/secrets/*/*.decrypt.private.php
+.phpunit.cache
+assets/vendor
+public/assets
+public/bundles
+var
+vendor
