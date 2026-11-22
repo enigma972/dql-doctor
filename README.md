@@ -45,6 +45,34 @@ Expected batch: one LOW automatic patch-and-replay, audited with the changed pro
 
 The local demo uses deterministic diagnosis by default (`APP_DEMO_DETERMINISTIC=true`), so no paid model API is used. Optional external diagnosis supports OpenAI, Anthropic Claude, and Google Gemini; see [AI provider configuration](docs/ai-agent.md#external-providers). AI output is a suggestion, not authorization to replay, patch, or discard a message.
 
+### Quickstart with a real API key
+
+Use the same prerequisites as above, plus an OpenAI API key with access to `gpt-4o-mini` and sufficient quota. This example prompts for your own key without storing it in shell history or a project file:
+
+```bash
+read -rs -p 'OpenAI API key: ' OPENAI_API_KEY && printf '\n'
+export OPENAI_API_KEY
+export APP_DEMO_DETERMINISTIC=false DLQ_AI_PROVIDER=openai DLQ_AI_MODEL=gpt-4o-mini
+read -rs -p 'Disposable local demo password: ' DLQ_DEMO_PASSWORD && printf '\n'
+export DLQ_DEMO_PASSWORD
+make rebuild && make fixtures
+make chaos && sleep 10 && make watch
+xdg-open http://localhost/
+```
+
+Sign in with `demo` and the password entered above. If that account already exists, use its existing password; fixtures do not overwrite it. On a slow system, wait for retries to finish and run `make watch` again.
+
+The watcher invokes the external model for the patch-eligible LOW scenario. MEDIUM and HIGH remain approval-gated. Unlike the deterministic quickstart, the model's patch is not guaranteed: invalid output, provider errors or exhausted quota fail explicitly, and an unchanged LOW payload may fail again after replay. Inspect `make logs SERVICE=app` and `make logs SERVICE=worker` if needed.
+
+**This makes real API requests and may incur charges.** The synthetic payload and schema are sent to OpenAI. Never use confidential messages without reviewing the [data-handling notes in ai-agent.md](docs/ai-agent.md#data-handling), and never commit your key. Claude and Gemini equivalents are documented in [ai-agent.md](docs/ai-agent.md#external-providers).
+
+Keep the exported variables available for subsequent Compose commands that recreate containers. When finished, stop the stack before clearing them:
+
+```bash
+make down
+unset OPENAI_API_KEY DLQ_DEMO_PASSWORD APP_DEMO_DETERMINISTIC DLQ_AI_PROVIDER DLQ_AI_MODEL
+```
+
 ### Review the proposals
 
 The UI and MCP endpoints remain protected. To set up the **dev-only** global `demo` operator separately, choose a throwaway password in Bash and load the fixture explicitly:
@@ -233,7 +261,12 @@ These are application safeguards, not an ISO 27001 or PCI DSS certification. See
 - The local demo uses the permissive global tenant mode and development credentials. Use the [tenant-mode runbook](docs/tenant-modes.md) for strict production configuration and trust boundaries.
 - These controls do not establish or certify ISO 27001 or PCI DSS compliance.
 
-See the [architecture decisions](docs/architecture.md), [tenant-mode runbook](docs/tenant-modes.md), and [MCP guide](docs/mcp.md) for more detail.
+## Documentation
+
+- [ai-agent.md](docs/ai-agent.md): configure OpenAI, Anthropic Claude or Google Gemini, select a model, and understand deterministic mode and data handling.
+- [Architecture decisions](docs/architecture.md): components, workflows and technical constraints.
+- [Tenant-mode runbook](docs/tenant-modes.md): global demo scope and strict multi-tenant deployments.
+- [MCP guide](docs/mcp.md): tools, client configuration and access controls.
 
 ## License
 
