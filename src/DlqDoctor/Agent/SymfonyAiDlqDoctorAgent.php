@@ -16,17 +16,11 @@ final readonly class SymfonyAiDlqDoctorAgent implements DlqDoctorAgentInterface
     public function __construct(
         #[Autowire(service: 'ai.agent.dlq_doctor')]
         private AgentInterface $agent,
-        #[Autowire('%env(OPENAI_API_KEY)%')]
-        private string $apiKey,
     ) {
     }
 
     public function analyze(DlqDoctorAgentRequest $request): DlqDoctorAgentResult
     {
-        if ('' === trim($this->apiKey)) {
-            throw new LogicException('OPENAI_API_KEY must be configured when deterministic mode is disabled.');
-        }
-
         try {
             $input = json_encode($request->toArray(), JSON_THROW_ON_ERROR, 64);
         } catch (JsonException $exception) {

@@ -11,6 +11,11 @@ services:
       MESSENGER_TRANSPORT_DSN: "amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672/%2f/messages"
       MCP_TENANT_ID: ${MCP_TENANT_ID:-}
       APP_DEMO_DETERMINISTIC: ${APP_DEMO_DETERMINISTIC:-true}
+      DLQ_AI_PROVIDER: ${DLQ_AI_PROVIDER:-openai}
+      DLQ_AI_MODEL: ${DLQ_AI_MODEL:-gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       MERCURE_URL: http://app/.well-known/mercure
       MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL:-http://localhost/.well-known/mercure}
       MERCURE_COOKIE_NAME: ${MERCURE_COOKIE_NAME:-mercure_access_token}
@@ -67,6 +72,11 @@ services:
       MESSENGER_TRANSPORT_DSN: "amqp://${RABBITMQ_USER:-app}:${RABBITMQ_PASSWORD:-app}@rabbitmq:5672/%2f/messages"
       MCP_TENANT_ID: ${MCP_TENANT_ID:-}
       APP_DEMO_DETERMINISTIC: ${APP_DEMO_DETERMINISTIC:-true}
+      DLQ_AI_PROVIDER: ${DLQ_AI_PROVIDER:-openai}
+      DLQ_AI_MODEL: ${DLQ_AI_MODEL:-gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       MERCURE_URL: http://app/.well-known/mercure
       MERCURE_PUBLIC_URL: ${MERCURE_PUBLIC_URL:-http://localhost/.well-known/mercure}
       MERCURE_JWT_SECRET: ${MERCURE_JWT_SECRET:-!ChangeThisMercureHubJWTSecretKey!}
