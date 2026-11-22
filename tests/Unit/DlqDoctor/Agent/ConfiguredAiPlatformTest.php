@@ -22,10 +22,10 @@ final class ConfiguredAiPlatformTest extends TestCase
         $other = static function (): never {
             throw new \LogicException('Unselected provider must not be instantiated.');
         };
-        $services = ['openai' => $other, 'anthropic' => $other, 'gemini' => $other];
+        $services = ['openai' => $other, 'anthropic' => $other, 'gemini' => $other, 'huggingface' => $other];
         $services[$name] = static fn () => $selected;
 
-        $platform = new ConfiguredAiPlatform(new ServiceLocator($services), $name, 'key', 'key', 'key');
+        $platform = new ConfiguredAiPlatform(new ServiceLocator($services), $name, 'key', 'key', 'key', 'key');
 
         self::assertSame($catalog, $platform->getModelCatalog());
     }
@@ -35,21 +35,22 @@ final class ConfiguredAiPlatformTest extends TestCase
         yield ['openai'];
         yield ['anthropic'];
         yield ['gemini'];
+        yield ['huggingface'];
     }
 
     #[DataProvider('providers')]
     public function testMissingSelectedKeyFailsBeforeProviderIsInstantiated(string $name): void
     {
-        $platform = new ConfiguredAiPlatform(new ServiceLocator([]), $name, '', '', '');
+        $platform = new ConfiguredAiPlatform(new ServiceLocator([]), $name, '', '', '', '');
 
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage(strtoupper($name).'_API_KEY');
+        $this->expectExceptionMessage(('huggingface' === $name ? 'HUGGINGFACE' : strtoupper($name)).'_API_KEY');
         $platform->getModelCatalog();
     }
 
     public function testUnknownProviderFailsExplicitly(): void
     {
-        $platform = new ConfiguredAiPlatform(new ServiceLocator([]), 'unknown', '', '', '');
+        $platform = new ConfiguredAiPlatform(new ServiceLocator([]), 'unknown', '', '', '', '');
 
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('DLQ_AI_PROVIDER');

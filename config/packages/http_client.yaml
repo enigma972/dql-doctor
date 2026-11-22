@@ -2,7 +2,7 @@ framework:
     http_client:
         scoped_clients:
             dlq_ai.client:
-                scope: '^https://(api\.openai\.com|api\.anthropic\.com|generativelanguage\.googleapis\.com)/'
+                scope: '^https://(api\.openai\.com|api\.anthropic\.com|generativelanguage\.googleapis\.com|router\.huggingface\.co)/'
                 retry_failed:
                     max_retries: 2
                     delay: 1000

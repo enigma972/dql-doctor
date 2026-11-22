@@ -39,6 +39,33 @@ final class ProviderConfigurationTest extends KernelTestCase
         }
     }
 
+    #[RunInSeparateProcess]
+    public function testHuggingFaceTransientFailureIsRetried(): void
+    {
+        foreach ([
+            'APP_DEMO_DETERMINISTIC' => 'false',
+            'DLQ_AI_PROVIDER' => 'huggingface',
+            'DLQ_AI_MODEL' => 'openai/gpt-oss-120b',
+            'HUGGINGFACE_API_KEY' => 'hf-test',
+        ] as $key => $value) {
+            $_ENV[$key] = $_SERVER[$key] = $value;
+            putenv($key.'='.$value);
+        }
+
+        self::bootKernel();
+        $client = new MockHttpClient([
+            new MockResponse('{"error":{"message":"temporarily unavailable"}}', ['http_code' => 503, 'response_headers' => ['retry-after: 0']]),
+            new MockResponse('{"choices":[{"message":{"role":"assistant","content":"{\"diagnosis\":\"Recovered\",\"proposedPayloadJson\":null}"},"finish_reason":"stop"}]}', ['response_headers' => ['content-type: application/json']]),
+        ]);
+        static::getContainer()->set('http_client.transport', $client);
+
+        $result = static::getContainer()->get(ConfiguredDlqDoctorAgent::class)->analyze(
+            new DlqDoctorAgentRequest('App\\Message\\Example', 'RuntimeException', [], ['type' => 'object']),
+        );
+        self::assertSame('Recovered', $result->diagnosis);
+        self::assertSame(2, $client->getRequestsCount());
+    }
+
     #[DataProvider('terminalFailures')]
     #[RunInSeparateProcess]
     public function testExhaustedOrPermanentFailureIsSurfaced(int $status, int $expectedRequests, string $exceptionClass): void
@@ -110,6 +137,7 @@ final class ProviderConfigurationTest extends KernelTestCase
             'OPENAI_API_KEY' => '',
             'ANTHROPIC_API_KEY' => '',
             'GEMINI_API_KEY' => '',
+            'HUGGINGFACE_API_KEY' => '',
         ] as $key => $value) {
             $_ENV[$key] = $_SERVER[$key] = $value;
             putenv($key.'='.$value);
@@ -135,6 +163,7 @@ final class ProviderConfigurationTest extends KernelTestCase
         yield ['openai', 'OPENAI_API_KEY'];
         yield ['anthropic', 'ANTHROPIC_API_KEY'];
         yield ['gemini', 'GEMINI_API_KEY'];
+        yield ['huggingface', 'HUGGINGFACE_API_KEY'];
         yield ['unknown', 'DLQ_AI_PROVIDER'];
     }
 
@@ -149,20 +178,26 @@ final class ProviderConfigurationTest extends KernelTestCase
             'OPENAI_API_KEY' => 'openai' === $provider ? 'sk-test' : '',
             'ANTHROPIC_API_KEY' => 'anthropic' === $provider ? 'anthropic-test' : '',
             'GEMINI_API_KEY' => 'gemini' === $provider ? 'gemini-test' : '',
+            'HUGGINGFACE_API_KEY' => 'huggingface' === $provider ? 'hf-test' : '',
         ] as $key => $value) {
             $_ENV[$key] = $_SERVER[$key] = $value;
             putenv($key.'='.$value);
         }
 
         self::bootKernel();
-        $client = new MockHttpClient(function (string $method, string $url, array $options) use ($provider, $host, $response): MockResponse {
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use ($provider, $model, $host, $response): MockResponse {
             self::assertSame('POST', $method);
             self::assertStringContainsString($host, $url);
             $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+            if ('huggingface' === $provider) {
+                self::assertSame($model, $body['model']);
+                self::assertContains('Authorization: Bearer hf-test', $options['headers']);
+            }
             match ($provider) {
                 'openai' => self::assertSame('json_schema', $body['text']['format']['type']),
                 'anthropic' => self::assertSame('json_schema', $body['output_config']['format']['type']),
                 'gemini' => self::assertSame('application/json', $body['generationConfig']['responseMimeType']),
+                'huggingface' => self::assertSame('json_schema', $body['response_format']['type']),
             };
 
             return new MockResponse(json_encode($response, JSON_THROW_ON_ERROR), ['response_headers' => ['Content-Type: application/json']]);
@@ -190,6 +225,9 @@ final class ProviderConfigurationTest extends KernelTestCase
         ]];
         yield 'gemini' => ['gemini', 'gemini-2.5-flash', 'generativelanguage.googleapis.com', [
             'candidates' => [['content' => ['parts' => [['text' => $text]]], 'finishReason' => 'STOP']],
+        ]];
+        yield 'huggingface' => ['huggingface', 'openai/gpt-oss-120b', 'router.huggingface.co/v1/chat/completions', [
+            'choices' => [['message' => ['role' => 'assistant', 'content' => $text], 'finish_reason' => 'stop']],
         ]];
     }
 }

@@ -21,6 +21,7 @@ final readonly class ConfiguredAiPlatform implements PlatformInterface
             'openai' => new Autowire(service: 'ai.platform.openai'),
             'anthropic' => new Autowire(service: 'ai.platform.anthropic'),
             'gemini' => new Autowire(service: 'ai.platform.gemini'),
+            'huggingface' => new Autowire(service: 'ai.platform.huggingface'),
         ])]
         private ContainerInterface $platforms,
         #[Autowire('%env(DLQ_AI_PROVIDER)%')]
@@ -34,6 +35,9 @@ final readonly class ConfiguredAiPlatform implements PlatformInterface
         #[\SensitiveParameter]
         #[Autowire('%env(GEMINI_API_KEY)%')]
         private string $geminiKey,
+        #[\SensitiveParameter]
+        #[Autowire('%env(HUGGINGFACE_API_KEY)%')]
+        private string $huggingFaceKey,
     ) {
     }
 
@@ -61,7 +65,8 @@ final readonly class ConfiguredAiPlatform implements PlatformInterface
             'openai' => [$this->openAiKey, 'OPENAI_API_KEY'],
             'anthropic' => [$this->anthropicKey, 'ANTHROPIC_API_KEY'],
             'gemini' => [$this->geminiKey, 'GEMINI_API_KEY'],
-            default => throw new LogicException('DLQ_AI_PROVIDER must be one of: openai, anthropic, gemini.'),
+            'huggingface' => [$this->huggingFaceKey, 'HUGGINGFACE_API_KEY'],
+            default => throw new LogicException('DLQ_AI_PROVIDER must be one of: openai, anthropic, gemini, huggingface.'),
         };
 
         if ('' === trim($key)) {

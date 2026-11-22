@@ -44,7 +44,7 @@ No host PHP, tenant header, tenant environment variable, or AI API key is requir
 
 Expected deterministic batch: one LOW automatic patch-and-replay, audited with the changed property names, and three approval proposals (MEDIUM, HIGH, and unclassified, which defaults to HIGH). All four scenarios have an invalid `status`; the agent suggests its explicit contract default, `ready`. LOW is repaired immediately, while the other three store the suggested payload and diff without altering or acknowledging the failed message. They remain failed until approval revalidates and replays the proposed payload. HIGH deletion is forbidden by policy. Re-run `app:chaos:inject` to add another set of scenarios.
 
-The local demo uses deterministic diagnosis by default (`APP_DEMO_DETERMINISTIC=true`), so no paid model API is used. Optional external diagnosis supports OpenAI, Anthropic Claude, and Google Gemini; see [AI provider configuration](docs/ai-agent.md#external-providers). AI output is a suggestion, not authorization to replay, patch, or discard a message.
+The local demo uses deterministic diagnosis by default (`APP_DEMO_DETERMINISTIC=true`), so no paid model API is used. Optional external diagnosis supports OpenAI, Anthropic Claude, Google Gemini, and Hugging Face Inference Providers; see [AI provider configuration](docs/ai-agent.md#external-providers). AI output is a suggestion, not authorization to replay, patch, or discard a message.
 
 ### Quickstart with a real API key
 
@@ -65,7 +65,7 @@ Sign in with `demo` and the password entered above. If that account already exis
 
 The watcher invokes the external model for LOW and for new MEDIUM/HIGH approval proposals when patch policy permits suggestions. Only LOW can be repaired automatically; MEDIUM/HIGH suggestions are stored for human review. Unlike the deterministic quickstart, a model patch is not guaranteed: invalid output, provider errors or exhausted quota fail explicitly, and unchanged payloads may fail again after replay. Inspect `make logs SERVICE=app` and `make logs SERVICE=worker` if needed.
 
-**This makes real API requests and may incur charges.** The synthetic payload and schema are sent to OpenAI. Never use confidential messages without reviewing the [data-handling notes in ai-agent.md](docs/ai-agent.md#data-handling), and never commit your key. Claude and Gemini equivalents are documented in [ai-agent.md](docs/ai-agent.md#external-providers).
+**This makes real API requests and may incur charges.** The synthetic payload and schema are sent to OpenAI. Never use confidential messages without reviewing the [data-handling notes in ai-agent.md](docs/ai-agent.md#data-handling), and never commit your key. Claude, Gemini and Hugging Face equivalents are documented in [ai-agent.md](docs/ai-agent.md#external-providers).
 
 Keep the exported variables available for subsequent Compose commands that recreate containers. When finished, stop the stack before clearing them:
 
