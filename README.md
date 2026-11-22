@@ -234,3 +234,7 @@ These are application safeguards, not an ISO 27001 or PCI DSS certification. See
 - These controls do not establish or certify ISO 27001 or PCI DSS compliance.
 
 See the [architecture decisions](docs/architecture.md), [tenant-mode runbook](docs/tenant-modes.md), and [MCP guide](docs/mcp.md) for more detail.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
