@@ -74,6 +74,15 @@
             "bin/phpunit"
         ]
     },
+    "symfony/ai-anthropic-platform": {
+        "version": "0.15",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "055b125ba7a6090b155b8b9dcbfabc881460863d"
+        }
+    },
     "symfony/ai-bundle": {
         "version": "0.15",
         "recipe": {
@@ -85,6 +94,15 @@
         "files": [
             "config/packages/ai.yaml"
         ]
+    },
+    "symfony/ai-gemini-platform": {
+        "version": "0.15",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "b703dbcb053eb9f41b2de73c5334a5214d4fcb57"
+        }
     },
     "symfony/ai-open-ai-platform": {
         "version": "0.15",

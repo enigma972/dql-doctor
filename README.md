@@ -43,7 +43,7 @@ No host PHP, tenant header, tenant environment variable, or AI API key is requir
 
 Expected batch: one LOW automatic patch-and-replay, audited with the changed property names, and three approval proposals (MEDIUM, HIGH, and unclassified, which defaults to HIGH). The LOW message succeeds on the worker after its invalid status is restored to the explicit contract default; proposal-required messages remain in the failure transport until reviewed. HIGH deletion is forbidden by policy. Re-run `app:chaos:inject` to add another set of scenarios.
 
-The local demo uses deterministic diagnosis by default (`APP_DEMO_DETERMINISTIC=true`), so no paid model API is used. To try the optional OpenAI-backed diagnosis, set `APP_DEMO_DETERMINISTIC=false` and provide `OPENAI_API_KEY` before starting the containers. AI output is a suggestion, not authorization to replay, patch, or discard a message.
+The local demo uses deterministic diagnosis by default (`APP_DEMO_DETERMINISTIC=true`), so no paid model API is used. Optional external diagnosis supports OpenAI, Anthropic Claude, and Google Gemini; see [AI provider configuration](docs/ai-agent.md#external-providers). AI output is a suggestion, not authorization to replay, patch, or discard a message.
 
 ### Review the proposals
 

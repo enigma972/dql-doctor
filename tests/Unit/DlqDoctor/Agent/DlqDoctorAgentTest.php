@@ -117,7 +117,7 @@ final class DlqDoctorAgentTest extends TestCase
             )
             ->willReturn($this->execution($response));
 
-        $result = (new SymfonyAiDlqDoctorAgent($agent, 'configured-key'))->analyze(
+        $result = (new SymfonyAiDlqDoctorAgent($agent))->analyze(
             new DlqDoctorAgentRequest(
                 'App\\Message\\OrderCreated',
                 'RuntimeException',
@@ -130,18 +130,6 @@ final class DlqDoctorAgentTest extends TestCase
         self::assertSame(['orderId' => 'order-17', 'currency' => 'USD'], $result->proposedPayload);
     }
 
-    public function testOptionalProviderWithoutApiKeyFailsBeforeCallingTheModel(): void
-    {
-        $agent = $this->createMock(AgentInterface::class);
-        $agent->expects(self::never())->method('call');
-
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('OPENAI_API_KEY');
-        (new SymfonyAiDlqDoctorAgent($agent, ''))->analyze(
-            new DlqDoctorAgentRequest('App\\Message\\Safe', 'RuntimeException', [], ['type' => 'object']),
-        );
-    }
-
     public function testOptionalProviderRejectsInvalidJsonPatch(): void
     {
         $agent = $this->createMock(AgentInterface::class);
@@ -150,7 +138,7 @@ final class DlqDoctorAgentTest extends TestCase
 
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionMessage('invalid JSON patch');
-        (new SymfonyAiDlqDoctorAgent($agent, 'configured-key'))->analyze(
+        (new SymfonyAiDlqDoctorAgent($agent))->analyze(
             new DlqDoctorAgentRequest('App\\Message\\Safe', 'RuntimeException', [], ['type' => 'object']),
         );
     }
@@ -160,7 +148,7 @@ final class DlqDoctorAgentTest extends TestCase
         $external = $this->createMock(DlqDoctorAgentInterface::class);
         $external->expects(self::never())->method('analyze');
         $request = new DlqDoctorAgentRequest('App\\Message\\Safe', 'RuntimeException', [], ['type' => 'object']);
-        $agent = new ConfiguredDlqDoctorAgent(new DeterministicMockAgent(), $external, true, '');
+        $agent = new ConfiguredDlqDoctorAgent(new DeterministicMockAgent(), $external, true);
 
         self::assertSame(
             (new DeterministicMockAgent())->analyze($request)->diagnosis,
@@ -168,16 +156,14 @@ final class DlqDoctorAgentTest extends TestCase
         );
     }
 
-    public function testConfiguredExternalModeFailsExplicitlyWhenApiKeyIsMissing(): void
+    public function testConfiguredExternalModeDelegatesToExternalProvider(): void
     {
         $external = $this->createMock(DlqDoctorAgentInterface::class);
-        $external->expects(self::never())->method('analyze');
+        $request = new DlqDoctorAgentRequest('App\\Message\\Safe', 'RuntimeException', [], ['type' => 'object']);
+        $result = (new DeterministicMockAgent())->analyze($request);
+        $external->expects(self::once())->method('analyze')->with($request)->willReturn($result);
 
-        $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('OPENAI_API_KEY');
-        (new ConfiguredDlqDoctorAgent(new DeterministicMockAgent(), $external, false, ''))->analyze(
-            new DlqDoctorAgentRequest('App\\Message\\Safe', 'RuntimeException', [], ['type' => 'object']),
-        );
+        self::assertSame($result, (new ConfiguredDlqDoctorAgent(new DeterministicMockAgent(), $external, false))->analyze($request));
     }
 
     private function execution(SymfonyAiAgentResponse $result): Execution
