@@ -27,6 +27,7 @@ framework:
             App\DlqDoctor\Demo\Chaos\ChaosMediumMessage: async
             App\DlqDoctor\Demo\Chaos\ChaosHighMessage: async
             App\DlqDoctor\Demo\Chaos\ChaosUnclassifiedMessage: async
+            App\DlqDoctor\Demo\Chaos\RepairableChaosMessage: async
 
             # Route your messages to the transports
             # 'App\Message\YourMessage': async

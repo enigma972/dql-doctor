@@ -16,14 +16,15 @@ flowchart LR
     A -->|patch suggested| V["Deserialize and validate"]
     V --> R["Audited replay<br/>RabbitMQ"]
     A -->|no patch| R
-    P -->|MEDIUM / HIGH| Q["Approval proposal"]
+    P -->|MEDIUM / HIGH: suggestion only| S["Agent diagnosis<br/>deserialize and validate suggestion"]
+    S --> Q["Approval proposal<br/>original + suggested payload + diff"]
     Q --> O["Transactional outbox"]
     O --> H["Mercure"]
     H --> UI["Review dashboard"]
     UI -->|approve| R
 ```
 
-The watcher can process failures without MCP. MCP dry-runs do not invoke the agent or replay a message; replay requests and watcher processing use the same policy-driven service. The default agent is deterministic and offline; Symfony AI is optional. A proposal is not a replay, and the dashboard does not apply the dry-run payload.
+The watcher can process failures without MCP. MCP dry-runs do not invoke the agent or replay a message; replay requests and watcher processing use the same policy-driven service. The default agent is deterministic and offline; Symfony AI is optional. A proposal is not a replay: the dashboard applies only its stored suggestion after approval, not a separately submitted MCP dry-run payload.
 
 ## Local demo
 
@@ -41,9 +42,37 @@ The first command builds and starts the stack, applies migrations and loads the 
 
 No host PHP, tenant header, tenant environment variable, or AI API key is required. Compose builds the app and CLI worker, and starts PostgreSQL, RabbitMQ, the Messenger worker, and the outbox publisher. `make help` lists the available shortcuts.
 
-Expected batch: one LOW automatic patch-and-replay, audited with the changed property names, and three approval proposals (MEDIUM, HIGH, and unclassified, which defaults to HIGH). The LOW message succeeds on the worker after its invalid status is restored to the explicit contract default; proposal-required messages remain in the failure transport until reviewed. HIGH deletion is forbidden by policy. Re-run `app:chaos:inject` to add another set of scenarios.
+Expected deterministic batch: one LOW automatic patch-and-replay, audited with the changed property names, and three approval proposals (MEDIUM, HIGH, and unclassified, which defaults to HIGH). All four scenarios have an invalid `status`; the agent suggests its explicit contract default, `ready`. LOW is repaired immediately, while the other three store the suggested payload and diff without altering or acknowledging the failed message. They remain failed until approval revalidates and replays the proposed payload. HIGH deletion is forbidden by policy. Re-run `app:chaos:inject` to add another set of scenarios.
 
-The local demo uses deterministic diagnosis by default (`APP_DEMO_DETERMINISTIC=true`), so no paid model API is used. Optional external diagnosis supports OpenAI, Anthropic Claude, and Google Gemini; see [AI provider configuration](docs/ai-agent.md#external-providers). AI output is a suggestion, not authorization to replay, patch, or discard a message.
+The local demo uses deterministic diagnosis by default (`APP_DEMO_DETERMINISTIC=true`), so no paid model API is used. Optional external diagnosis supports OpenAI, Anthropic Claude, Google Gemini, and Hugging Face Inference Providers; see [AI provider configuration](docs/ai-agent.md#external-providers). AI output is a suggestion, not authorization to replay, patch, or discard a message.
+
+### Quickstart with a real API key
+
+Use the same prerequisites as above, plus an OpenAI API key with access to `gpt-4o-mini` and sufficient quota. This example prompts for your own key without storing it in shell history or a project file:
+
+```bash
+read -rs -p 'OpenAI API key: ' OPENAI_API_KEY && printf '\n'
+export OPENAI_API_KEY
+export APP_DEMO_DETERMINISTIC=false DLQ_AI_PROVIDER=openai DLQ_AI_MODEL=gpt-4o-mini
+read -rs -p 'Disposable local demo password: ' DLQ_DEMO_PASSWORD && printf '\n'
+export DLQ_DEMO_PASSWORD
+make rebuild && make fixtures
+make chaos && sleep 10 && make watch
+xdg-open http://localhost/
+```
+
+Sign in with `demo` and the password entered above. If that account already exists, use its existing password; fixtures do not overwrite it. On a slow system, wait for retries to finish and run `make watch` again.
+
+The watcher invokes the external model for LOW and for new MEDIUM/HIGH approval proposals when patch policy permits suggestions. Only LOW can be repaired automatically; MEDIUM/HIGH suggestions are stored for human review. Unlike the deterministic quickstart, a model patch is not guaranteed: invalid output, provider errors or exhausted quota fail explicitly, and unchanged payloads may fail again after replay. Inspect `make logs SERVICE=app` and `make logs SERVICE=worker` if needed.
+
+**This makes real API requests and may incur charges.** The synthetic payload and schema are sent to OpenAI. Never use confidential messages without reviewing the [data-handling notes in ai-agent.md](docs/ai-agent.md#data-handling), and never commit your key. Claude, Gemini and Hugging Face equivalents are documented in [ai-agent.md](docs/ai-agent.md#external-providers).
+
+Keep the exported variables available for subsequent Compose commands that recreate containers. When finished, stop the stack before clearing them:
+
+```bash
+make down
+unset OPENAI_API_KEY DLQ_DEMO_PASSWORD APP_DEMO_DETERMINISTIC DLQ_AI_PROVIDER DLQ_AI_MODEL
+```
 
 ### Review the proposals
 
@@ -61,9 +90,9 @@ Keep `--append`: without it, Doctrine Fixtures can purge existing data. Re-runni
 
 Open [http://localhost/](http://localhost/) and sign in. The development form shows `demo` and the configured demo password as placeholders, so **only use a disposable password and keep the development app local**. These hints and the demo account are disabled outside `dev`. The same account can authenticate a local MCP client with HTTP Basic; a browser session does not authenticate MCP requests.
 
-Review the MEDIUM, HIGH, or unclassified proposal. Approve or reject a proposal; the original failure is replayed only after approval. Keep the page open while injecting and scanning another set to see private Mercure updates.
+Review the MEDIUM, HIGH, or unclassified proposal, including its original payload, suggested payload and diff. Approve to replay the validated suggestion, or reject to leave the failure untouched. When no patch was suggested, approval replays the original payload. Existing proposals are not regenerated: rebuild the app and worker with `make rebuild`, then inject a new batch to see the `RepairableChaos*` scenarios. Legacy `ChaosMediumMessage`, `ChaosHighMessage` and `ChaosUnclassifiedMessage` keep their previous retry behavior and contracts. Keep the page open while injecting and scanning another set to see private Mercure updates.
 
-Patch dry runs validate a proposed payload and report a diff; the current UI does not submit or apply a patched payload. The configured LOW-risk policy also permits an agent-suggested patch to be applied automatically only after deserialization into the original message class and Symfony validation; the replay and changed property names are audited. MEDIUM and HIGH cases remain approval-gated.
+Patch dry runs validate a proposed payload and report a diff; they do not update a proposal. The configured LOW-risk policy permits an agent-suggested patch to be applied automatically only after deserialization into the original message class and Symfony validation; the replay and changed property names are audited. MEDIUM/HIGH proposals store validated suggestions for review, and approval revalidates them before replay.
 
 ### Ports, configuration, and troubleshooting
 
@@ -79,6 +108,7 @@ Patch dry runs validate a proposed payload and report a diff; the current UI doe
 - PostgreSQL and RabbitMQ are reachable by service name from the Compose network and are not published to the host by default.
 - For startup or migration problems, inspect `docker compose ps -a` and `docker compose logs migrate app`.
 - For retries and DLQ transitions, inspect `docker compose logs worker`; run `app:dlq:watch --once` only after retry delivery has finished.
+- For an unavailable AI provider, the diagnostic HTTP client retries 429/502/503/504 responses twice; persistent failures stop the watcher without an automatic provider switch. See [provider outages and unsupported models](docs/ai-agent.md#provider-outages-and-unsupported-models).
 - For live updates, inspect `docker compose logs outbox-publisher app`. The publisher and browser share the configured Mercure cookie name.
 - After source or Dockerfile changes, rebuild with `docker compose up -d --build --wait`.
 
@@ -233,7 +263,12 @@ These are application safeguards, not an ISO 27001 or PCI DSS certification. See
 - The local demo uses the permissive global tenant mode and development credentials. Use the [tenant-mode runbook](docs/tenant-modes.md) for strict production configuration and trust boundaries.
 - These controls do not establish or certify ISO 27001 or PCI DSS compliance.
 
-See the [architecture decisions](docs/architecture.md), [tenant-mode runbook](docs/tenant-modes.md), and [MCP guide](docs/mcp.md) for more detail.
+## Documentation
+
+- [ai-agent.md](docs/ai-agent.md): configure OpenAI, Anthropic Claude or Google Gemini, select a model, and understand deterministic mode and data handling.
+- [Architecture decisions](docs/architecture.md): components, workflows and technical constraints.
+- [Tenant-mode runbook](docs/tenant-modes.md): global demo scope and strict multi-tenant deployments.
+- [MCP guide](docs/mcp.md): tools, client configuration and access controls.
 
 ## License
 

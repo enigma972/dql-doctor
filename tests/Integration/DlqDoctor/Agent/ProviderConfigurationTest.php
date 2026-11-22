@@ -14,6 +14,118 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class ProviderConfigurationTest extends KernelTestCase
 {
+    #[DataProvider('transientStatuses')]
+    #[RunInSeparateProcess]
+    public function testTransientFailuresAreRetriedBeforeReturningDiagnosis(int $status): void
+    {
+        $this->setGeminiEnvironment();
+        self::bootKernel();
+        $client = new MockHttpClient([
+            new MockResponse('{"error":{"message":"temporarily unavailable"}}', ['http_code' => $status, 'response_headers' => ['retry-after: 0']]),
+            new MockResponse('{"candidates":[{"content":{"parts":[{"text":"{\"diagnosis\":\"Recovered\",\"proposedPayloadJson\":null}"}]},"finishReason":"STOP"}]}', ['response_headers' => ['content-type: application/json']]),
+        ]);
+        static::getContainer()->set('http_client.transport', $client);
+        $result = static::getContainer()->get(ConfiguredDlqDoctorAgent::class)->analyze(
+            new DlqDoctorAgentRequest('App\\Message\\Example', 'RuntimeException', [], ['type' => 'object']),
+        );
+        self::assertSame('Recovered', $result->diagnosis);
+        self::assertSame(2, $client->getRequestsCount());
+    }
+
+    public static function transientStatuses(): iterable
+    {
+        foreach ([429, 502, 503, 504] as $status) {
+            yield (string) $status => [$status];
+        }
+    }
+
+    #[RunInSeparateProcess]
+    public function testHuggingFaceTransientFailureIsRetried(): void
+    {
+        foreach ([
+            'APP_DEMO_DETERMINISTIC' => 'false',
+            'DLQ_AI_PROVIDER' => 'huggingface',
+            'DLQ_AI_MODEL' => 'openai/gpt-oss-120b',
+            'HUGGINGFACE_API_KEY' => 'hf-test',
+        ] as $key => $value) {
+            $_ENV[$key] = $_SERVER[$key] = $value;
+            putenv($key.'='.$value);
+        }
+
+        self::bootKernel();
+        $client = new MockHttpClient([
+            new MockResponse('{"error":{"message":"temporarily unavailable"}}', ['http_code' => 503, 'response_headers' => ['retry-after: 0']]),
+            new MockResponse('{"choices":[{"message":{"role":"assistant","content":"{\"diagnosis\":\"Recovered\",\"proposedPayloadJson\":null}"},"finish_reason":"stop"}]}', ['response_headers' => ['content-type: application/json']]),
+        ]);
+        static::getContainer()->set('http_client.transport', $client);
+
+        $result = static::getContainer()->get(ConfiguredDlqDoctorAgent::class)->analyze(
+            new DlqDoctorAgentRequest('App\\Message\\Example', 'RuntimeException', [], ['type' => 'object']),
+        );
+        self::assertSame('Recovered', $result->diagnosis);
+        self::assertSame(2, $client->getRequestsCount());
+    }
+
+    #[DataProvider('terminalFailures')]
+    #[RunInSeparateProcess]
+    public function testExhaustedOrPermanentFailureIsSurfaced(int $status, int $expectedRequests, string $exceptionClass): void
+    {
+        $this->setGeminiEnvironment();
+        self::bootKernel();
+        $client = new MockHttpClient(static fn (): MockResponse => new MockResponse(
+            '{"error":{"message":"provider failure"}}',
+            ['http_code' => $status, 'response_headers' => ['retry-after: 0']],
+        ));
+        static::getContainer()->set('http_client.transport', $client);
+        try {
+            static::getContainer()->get(ConfiguredDlqDoctorAgent::class)->analyze(
+                new DlqDoctorAgentRequest('App\\Message\\Example', 'RuntimeException', [], ['type' => 'object']),
+            );
+            self::fail('Provider failure should be surfaced.');
+        } catch (\Symfony\AI\Platform\Exception\ExceptionInterface $exception) {
+            self::assertInstanceOf($exceptionClass, $exception);
+            self::assertSame($expectedRequests, $client->getRequestsCount());
+        }
+    }
+
+    public static function terminalFailures(): iterable
+    {
+        yield 'exhausted' => [503, 3, \Symfony\AI\Platform\Exception\ServerException::class];
+        yield 'bad request' => [400, 1, \Symfony\AI\Platform\Exception\BadRequestException::class];
+    }
+
+    #[RunInSeparateProcess]
+    public function testUnknownModelReportsProviderAndConfigurationWithoutHttp(): void
+    {
+        $this->setGeminiEnvironment('unknown-test-model');
+        self::bootKernel();
+        $client = new MockHttpClient();
+        static::getContainer()->set('http_client.transport', $client);
+        try {
+            static::getContainer()->get(ConfiguredDlqDoctorAgent::class)->analyze(
+                new DlqDoctorAgentRequest('App\\Message\\Example', 'RuntimeException', [], ['type' => 'object']),
+            );
+            self::fail('Unknown model should fail.');
+        } catch (\Symfony\AI\Platform\Exception\ModelNotFoundException $exception) {
+            self::assertStringContainsString('DLQ_AI_MODEL', $exception->getMessage());
+            self::assertStringContainsString('gemini', $exception->getMessage());
+            self::assertSame(0, $client->getRequestsCount());
+        }
+    }
+
+    private function setGeminiEnvironment(string $model = 'gemini-2.5-flash'): void
+    {
+        foreach ([
+            'APP_DEMO_DETERMINISTIC' => 'false',
+            'DLQ_AI_PROVIDER' => 'gemini',
+            'DLQ_AI_MODEL' => $model,
+            'GEMINI_API_KEY' => 'gemini-test',
+        ] as $key => $value) {
+            $_ENV[$key] = $_SERVER[$key] = $value;
+            putenv($key.'='.$value);
+        }
+    }
+
     #[DataProvider('invalidConfigurations')]
     #[RunInSeparateProcess]
     public function testInvalidProviderConfigurationFailsWithoutAnHttpRequest(string $provider, string $message): void
@@ -25,6 +137,7 @@ final class ProviderConfigurationTest extends KernelTestCase
             'OPENAI_API_KEY' => '',
             'ANTHROPIC_API_KEY' => '',
             'GEMINI_API_KEY' => '',
+            'HUGGINGFACE_API_KEY' => '',
         ] as $key => $value) {
             $_ENV[$key] = $_SERVER[$key] = $value;
             putenv($key.'='.$value);
@@ -32,7 +145,7 @@ final class ProviderConfigurationTest extends KernelTestCase
 
         self::bootKernel();
         $client = new MockHttpClient();
-        static::getContainer()->set('http_client', $client);
+        static::getContainer()->set('http_client.transport', $client);
 
         try {
             static::getContainer()->get(ConfiguredDlqDoctorAgent::class)->analyze(
@@ -50,6 +163,7 @@ final class ProviderConfigurationTest extends KernelTestCase
         yield ['openai', 'OPENAI_API_KEY'];
         yield ['anthropic', 'ANTHROPIC_API_KEY'];
         yield ['gemini', 'GEMINI_API_KEY'];
+        yield ['huggingface', 'HUGGINGFACE_API_KEY'];
         yield ['unknown', 'DLQ_AI_PROVIDER'];
     }
 
@@ -64,25 +178,31 @@ final class ProviderConfigurationTest extends KernelTestCase
             'OPENAI_API_KEY' => 'openai' === $provider ? 'sk-test' : '',
             'ANTHROPIC_API_KEY' => 'anthropic' === $provider ? 'anthropic-test' : '',
             'GEMINI_API_KEY' => 'gemini' === $provider ? 'gemini-test' : '',
+            'HUGGINGFACE_API_KEY' => 'huggingface' === $provider ? 'hf-test' : '',
         ] as $key => $value) {
             $_ENV[$key] = $_SERVER[$key] = $value;
             putenv($key.'='.$value);
         }
 
         self::bootKernel();
-        $client = new MockHttpClient(function (string $method, string $url, array $options) use ($provider, $host, $response): MockResponse {
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use ($provider, $model, $host, $response): MockResponse {
             self::assertSame('POST', $method);
             self::assertStringContainsString($host, $url);
             $body = json_decode($options['body'], true, flags: JSON_THROW_ON_ERROR);
+            if ('huggingface' === $provider) {
+                self::assertSame($model, $body['model']);
+                self::assertContains('Authorization: Bearer hf-test', $options['headers']);
+            }
             match ($provider) {
                 'openai' => self::assertSame('json_schema', $body['text']['format']['type']),
                 'anthropic' => self::assertSame('json_schema', $body['output_config']['format']['type']),
                 'gemini' => self::assertSame('application/json', $body['generationConfig']['responseMimeType']),
+                'huggingface' => self::assertSame('json_schema', $body['response_format']['type']),
             };
 
             return new MockResponse(json_encode($response, JSON_THROW_ON_ERROR), ['response_headers' => ['Content-Type: application/json']]);
         });
-        static::getContainer()->set('http_client', $client);
+        static::getContainer()->set('http_client.transport', $client);
 
         $result = static::getContainer()->get(ConfiguredDlqDoctorAgent::class)->analyze(
             new DlqDoctorAgentRequest('App\\Message\\Example', 'RuntimeException', ['id' => '1'], ['type' => 'object']),
@@ -105,6 +225,9 @@ final class ProviderConfigurationTest extends KernelTestCase
         ]];
         yield 'gemini' => ['gemini', 'gemini-2.5-flash', 'generativelanguage.googleapis.com', [
             'candidates' => [['content' => ['parts' => [['text' => $text]]], 'finishReason' => 'STOP']],
+        ]];
+        yield 'huggingface' => ['huggingface', 'openai/gpt-oss-120b', 'router.huggingface.co/v1/chat/completions', [
+            'choices' => [['message' => ['role' => 'assistant', 'content' => $text], 'finish_reason' => 'stop']],
         ]];
     }
 }

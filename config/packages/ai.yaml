@@ -1,11 +1,17 @@
 ai:
     platform:
+        huggingface:
+            api_key: '%env(HUGGINGFACE_API_KEY)%'
+            http_client: dlq_ai.client
         gemini:
             api_key: '%env(GEMINI_API_KEY)%'
+            http_client: dlq_ai.client
         anthropic:
             api_key: '%env(ANTHROPIC_API_KEY)%'
+            http_client: dlq_ai.client
         openai:
             api_key: '%env(OPENAI_API_KEY)%'
+            http_client: dlq_ai.client
 
     agent:
         dlq_doctor:

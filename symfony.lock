@@ -104,6 +104,27 @@
             "ref": "b703dbcb053eb9f41b2de73c5334a5214d4fcb57"
         }
     },
+    "symfony/ai-generic-platform": {
+        "version": "0.15",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "a3919116f59f52377b59cfffe889711f8351d472"
+        },
+        "files": [
+            "config/packages/ai_generic_platform.yaml"
+        ]
+    },
+    "symfony/ai-hugging-face-platform": {
+        "version": "0.15",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "68bc896a3d39a0155d55fb77635d9f7d1df66e8f"
+        }
+    },
     "symfony/ai-open-ai-platform": {
         "version": "0.15",
         "recipe": {

@@ -6,6 +6,7 @@ namespace App\DlqDoctor\Agent;
 
 use LogicException;
 use Psr\Container\ContainerInterface;
+use Symfony\AI\Platform\Exception\ModelNotFoundException;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\ModelCatalog\ModelCatalogInterface;
 use Symfony\AI\Platform\PlatformInterface;
@@ -20,6 +21,7 @@ final readonly class ConfiguredAiPlatform implements PlatformInterface
             'openai' => new Autowire(service: 'ai.platform.openai'),
             'anthropic' => new Autowire(service: 'ai.platform.anthropic'),
             'gemini' => new Autowire(service: 'ai.platform.gemini'),
+            'huggingface' => new Autowire(service: 'ai.platform.huggingface'),
         ])]
         private ContainerInterface $platforms,
         #[Autowire('%env(DLQ_AI_PROVIDER)%')]
@@ -33,12 +35,23 @@ final readonly class ConfiguredAiPlatform implements PlatformInterface
         #[\SensitiveParameter]
         #[Autowire('%env(GEMINI_API_KEY)%')]
         private string $geminiKey,
+        #[\SensitiveParameter]
+        #[Autowire('%env(HUGGINGFACE_API_KEY)%')]
+        private string $huggingFaceKey,
     ) {
     }
 
     public function invoke(string|Model $model, array|string|object $input, array $options = []): DeferredResult
     {
-        return $this->platform()->invoke($model, $input, $options);
+        try {
+            return $this->platform()->invoke($model, $input, $options);
+        } catch (ModelNotFoundException $exception) {
+            throw new ModelNotFoundException(sprintf(
+                'The selected model "%s" is unavailable in the installed catalog for provider "%s". Check DLQ_AI_MODEL and DLQ_AI_PROVIDER, or update the provider bridge.',
+                $model instanceof Model ? $model->getName() : $model,
+                $this->provider,
+            ), previous: $exception);
+        }
     }
 
     public function getModelCatalog(): ModelCatalogInterface
@@ -52,7 +65,8 @@ final readonly class ConfiguredAiPlatform implements PlatformInterface
             'openai' => [$this->openAiKey, 'OPENAI_API_KEY'],
             'anthropic' => [$this->anthropicKey, 'ANTHROPIC_API_KEY'],
             'gemini' => [$this->geminiKey, 'GEMINI_API_KEY'],
-            default => throw new LogicException('DLQ_AI_PROVIDER must be one of: openai, anthropic, gemini.'),
+            'huggingface' => [$this->huggingFaceKey, 'HUGGINGFACE_API_KEY'],
+            default => throw new LogicException('DLQ_AI_PROVIDER must be one of: openai, anthropic, gemini, huggingface.'),
         };
 
         if ('' === trim($key)) {
