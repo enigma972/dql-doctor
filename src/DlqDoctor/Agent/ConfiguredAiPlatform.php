@@ -6,6 +6,7 @@ namespace App\DlqDoctor\Agent;
 
 use LogicException;
 use Psr\Container\ContainerInterface;
+use Symfony\AI\Platform\Exception\ModelNotFoundException;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\ModelCatalog\ModelCatalogInterface;
 use Symfony\AI\Platform\PlatformInterface;
@@ -38,7 +39,15 @@ final readonly class ConfiguredAiPlatform implements PlatformInterface
 
     public function invoke(string|Model $model, array|string|object $input, array $options = []): DeferredResult
     {
-        return $this->platform()->invoke($model, $input, $options);
+        try {
+            return $this->platform()->invoke($model, $input, $options);
+        } catch (ModelNotFoundException $exception) {
+            throw new ModelNotFoundException(sprintf(
+                'The selected model "%s" is unavailable in the installed catalog for provider "%s". Check DLQ_AI_MODEL and DLQ_AI_PROVIDER, or update the provider bridge.',
+                $model instanceof Model ? $model->getName() : $model,
+                $this->provider,
+            ), previous: $exception);
+        }
     }
 
     public function getModelCatalog(): ModelCatalogInterface
